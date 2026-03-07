@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: financial_db
+    environment:
+      POSTGRES_USER: financial_user
+      POSTGRES_PASSWORD: financial_password
+      POSTGRES_DB: financial_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financial_user -d financial_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - financial_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: financial_cache
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - financial_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: financial_backend
+    environment:
+      ENVIRONMENT: development
+      DEBUG: "true"
+      DATABASE_URL: postgresql://financial_user:financial_password@postgres:5432/financial_db
+      REDIS_URL: redis://redis:6379/0
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      CORS_ORIGINS: '["http://localhost:3000", "http://localhost:3001"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: python main.py
+    networks:
+      - financial_network
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: financial_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_TIMEOUT: "30000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - financial_network
+    restart: unless-stopped
+
+  # pgAdmin for Database Management (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: financial_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - financial_network
+    restart: unless-stopped
+
+  # Redis Commander for Cache Management (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: financial_redis_commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - financial_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  financial_network:
+    driver: bridge
+
+# Usage:
+# 1. Copy .env.example to .env and set API keys
+# 2. Run: docker-compose up
+# 3. Services will be available at:
+#    - Backend: http://localhost:8000
+#    - Frontend: http://localhost:3000
+#    - PostgreSQL: localhost:5432
+#    - Redis: localhost:6379
+#    - pgAdmin: http://localhost:5050
+#    - Redis Commander: http://localhost:8081
