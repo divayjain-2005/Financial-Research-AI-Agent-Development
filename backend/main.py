@@ -4,11 +4,13 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import sys
+from pathlib import Path
 from datetime import datetime
 
 from app.core.config import get_settings
 from app.db.database import init_db_managers, get_db, get_redis
 from app.utils.api_client import AlphaVantageAPI, RateLimiter
+sys.path.insert(0, str(Path(__file__).parent))
 
 # Configure logging
 logging.basicConfig(
