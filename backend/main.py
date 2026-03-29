@@ -7,17 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
+import time
 import json
 
 app = FastAPI(
     title="Financial Research AI Agent",
     version="0.2.0",
-    description="AI-powered financial research assistant with real stock data"
+    description="AI-powered financial research assistant with Alpha Vantage"
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,12 +26,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Environment Variables
 ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
-
-# Constants
 ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query"
+
+# ==================== Cache System ====================
+class CacheEntry:
+    def __init__(self, data, ttl_minutes=60):
+        self.data = data
+        self.created_at = datetime.now()
+        self.ttl = timedelta(minutes=ttl_minutes)
+    
+    def is_expired(self):
+        return datetime.now() - self.created_at > self.ttl
+
+cache = {}
+last_api_call = {"time": 0}
+
+def get_cached(key):
+    if key in cache:
+        entry = cache[key]
+        if not entry.is_expired():
+            return entry.data
+        else:
+            del cache[key]
+    return None
+
+def set_cache(key, data, ttl=60):
+    cache[key] = CacheEntry(data, ttl)
+
+def rate_limit():
+    """Enforce 1 request per 2 seconds for free tier"""
+    now = time.time()
+    if now - last_api_call["time"] < 2:
+        time.sleep(2 - (now - last_api_call["time"]))
+    last_api_call["time"] = time.time()
 
 # ==================== Data Models ====================
 
@@ -41,16 +69,12 @@ class StockQuote(BaseModel):
     change: float
     change_percent: float
     timestamp: str
-    high_52week: Optional[float] = None
-    low_52week: Optional[float] = None
 
 class TechnicalIndicators(BaseModel):
     symbol: str
     sma_50: Optional[float] = None
     sma_200: Optional[float] = None
     rsi: Optional[float] = None
-    macd: Optional[float] = None
-    signal: Optional[float] = None
 
 class StockAnalysis(BaseModel):
     symbol: str
@@ -65,18 +89,17 @@ class PortfolioStock(BaseModel):
     purchase_price: float
     purchase_date: str
 
-class Portfolio(BaseModel):
-    stocks: List[PortfolioStock]
-    total_value: float
-    total_invested: float
-    total_gain_loss: float
-    gain_loss_percent: float
-
-# ==================== Alpha Vantage API Integration ====================
+# ==================== Alpha Vantage Functions ====================
 
 def fetch_stock_quote(symbol: str) -> Optional[Dict]:
-    """Fetch real stock quote from Alpha Vantage"""
+    """Fetch stock quote with caching"""
+    cache_key = f"quote_{symbol}"
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+    
     try:
+        rate_limit()
         params = {
             "function": "GLOBAL_QUOTE",
             "symbol": symbol,
@@ -85,35 +108,45 @@ def fetch_stock_quote(symbol: str) -> Optional[Dict]:
         response = requests.get(ALPHA_VANTAGE_BASE_URL, params=params, timeout=10)
         data = response.json()
         
-        if "Global Quote" in data and data["Global Quote"]:
+        if "Global Quote" in data and data["Global Quote"].get("05. price"):
             quote = data["Global Quote"]
-            return {
+            result = {
                 "symbol": symbol,
                 "price": float(quote.get("05. price", 0)),
                 "change": float(quote.get("09. change", 0)),
                 "change_percent": float(quote.get("10. change percent", "0").replace("%", "")),
-                "high_52week": float(quote.get("52 Week High", 0)),
-                "low_52week": float(quote.get("52 Week Low", 0)),
                 "timestamp": datetime.now().isoformat()
             }
+            set_cache(cache_key, result, ttl=30)
+            return result
     except Exception as e:
-        print(f"Error fetching quote for {symbol}: {str(e)}")
+        print(f"Error: {str(e)}")
     
     return None
 
-def fetch_historical_data(symbol: str, function: str = "TIME_SERIES_DAILY") -> Optional[Dict]:
-    """Fetch historical data for technical indicators"""
+def fetch_historical_data(symbol: str) -> Optional[Dict]:
+    """Fetch historical data with caching"""
+    cache_key = f"historical_{symbol}"
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+    
     try:
+        rate_limit()
         params = {
-            "function": function,
+            "function": "TIME_SERIES_DAILY",
             "symbol": symbol,
+            "outputsize": "full",
             "apikey": ALPHA_VANTAGE_KEY
         }
         response = requests.get(ALPHA_VANTAGE_BASE_URL, params=params, timeout=10)
         data = response.json()
-        return data
+        
+        if "Time Series (Daily)" in data:
+            set_cache(cache_key, data, ttl=60)
+            return data
     except Exception as e:
-        print(f"Error fetching historical data for {symbol}: {str(e)}")
+        print(f"Error: {str(e)}")
     
     return None
 
@@ -124,7 +157,7 @@ def calculate_sma(prices: List[float], period: int) -> Optional[float]:
     return sum(prices[:period]) / period
 
 def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
-    """Calculate Relative Strength Index"""
+    """Calculate RSI"""
     if len(prices) < period + 1:
         return None
     
@@ -143,9 +176,9 @@ def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
     return rsi
 
 def get_technical_indicators(symbol: str) -> Optional[TechnicalIndicators]:
-    """Get technical indicators for a stock"""
+    """Get technical indicators"""
     try:
-        data = fetch_historical_data(symbol, "TIME_SERIES_DAILY")
+        data = fetch_historical_data(symbol)
         if not data or "Time Series (Daily)" not in data:
             return None
         
@@ -165,14 +198,12 @@ def get_technical_indicators(symbol: str) -> Optional[TechnicalIndicators]:
             rsi=rsi
         )
     except Exception as e:
-        print(f"Error calculating indicators for {symbol}: {str(e)}")
+        print(f"Error: {str(e)}")
     
     return None
 
-# ==================== Sentiment Analysis ====================
-
 def get_sentiment_score(symbol: str) -> Optional[str]:
-    """Simple sentiment based on technical indicators"""
+    """Get sentiment based on RSI"""
     try:
         indicators = get_technical_indicators(symbol)
         if not indicators or not indicators.rsi:
@@ -195,9 +226,10 @@ def get_sentiment_score(symbol: str) -> Optional[str]:
 @app.get("/")
 async def root():
     return {
-        "message": "Financial Research AI Agent API",
+        "message": "Financial Research AI Agent",
         "version": "0.2.0",
-        "week": "Week 2 - Real Data & Technical Analysis"
+        "week": "2",
+        "api": "Alpha Vantage (Optimized with Caching)"
     }
 
 @app.get("/health")
@@ -205,9 +237,9 @@ async def health():
     return {
         "status": "healthy",
         "service": "Financial Research AI Agent",
-        "environment": "production",
         "week": "2",
-        "features": ["Real Stock Data", "Technical Indicators", "Sentiment Analysis", "Portfolio Tracking"]
+        "cache_size": len(cache),
+        "features": ["Real Stock Data", "Technical Indicators", "Sentiment Analysis"]
     }
 
 @app.get("/api/v1/stocks/quote/{symbol}", response_model=StockQuote)
@@ -217,35 +249,6 @@ async def get_stock_quote_endpoint(symbol: str):
     if not quote:
         raise HTTPException(status_code=404, detail=f"Could not fetch quote for {symbol}")
     return StockQuote(**quote)
-
-@app.get("/api/v1/stocks/historical/{symbol}")
-async def get_historical_data(
-    symbol: str,
-    days: int = Query(30, ge=1, le=365)
-):
-    """Get historical stock data"""
-    data = fetch_historical_data(symbol)
-    if not data or "Time Series (Daily)" not in data:
-        raise HTTPException(status_code=404, detail=f"Could not fetch historical data for {symbol}")
-    
-    time_series = data["Time Series (Daily)"]
-    dates = sorted(time_series.keys())[-days:]
-    
-    return {
-        "symbol": symbol,
-        "days": days,
-        "data": [
-            {
-                "date": date,
-                "open": float(time_series[date]["1. open"]),
-                "high": float(time_series[date]["2. high"]),
-                "low": float(time_series[date]["3. low"]),
-                "close": float(time_series[date]["4. close"]),
-                "volume": int(time_series[date]["5. volume"])
-            }
-            for date in dates
-        ]
-    }
 
 @app.get("/api/v1/stocks/technical/{symbol}")
 async def get_technical_indicators_endpoint(symbol: str):
@@ -257,7 +260,7 @@ async def get_technical_indicators_endpoint(symbol: str):
 
 @app.get("/api/v1/stocks/analyze/{symbol}", response_model=StockAnalysis)
 async def analyze_stock(symbol: str):
-    """Complete stock analysis with quote, indicators, and sentiment"""
+    """Complete stock analysis"""
     try:
         quote = fetch_stock_quote(symbol)
         if not quote:
@@ -266,7 +269,6 @@ async def analyze_stock(symbol: str):
         indicators = get_technical_indicators(symbol)
         sentiment = get_sentiment_score(symbol)
         
-        # Generate recommendation
         recommendation = "HOLD"
         if indicators and indicators.rsi:
             if indicators.rsi < 30:
@@ -294,7 +296,7 @@ async def analyze_stock(symbol: str):
 async def compare_stocks(symbols: List[str] = Query(...)):
     """Compare multiple stocks"""
     if len(symbols) < 2:
-        raise HTTPException(status_code=400, detail="Provide at least 2 symbols to compare")
+        raise HTTPException(status_code=400, detail="Provide at least 2 symbols")
     
     comparisons = []
     for symbol in symbols:
@@ -311,7 +313,7 @@ async def compare_stocks(symbols: List[str] = Query(...)):
             pass
     
     if not comparisons:
-        raise HTTPException(status_code=404, detail="Could not fetch data for any symbols")
+        raise HTTPException(status_code=404, detail="Could not fetch data")
     
     return {
         "symbols": symbols,
@@ -366,48 +368,9 @@ async def calculate_portfolio(stocks: List[PortfolioStock]):
         "performance": "UP" if total_gain_loss > 0 else "DOWN" if total_gain_loss < 0 else "NEUTRAL"
     }
 
-@app.get("/api/v1/stocks/screener")
-async def stock_screener(
-    min_rsi: float = Query(0, ge=0, le=100),
-    max_rsi: float = Query(100, ge=0, le=100),
-    min_price: float = Query(0, ge=0),
-    max_price: float = Query(100000, ge=0)
-):
-    """Screen stocks by technical criteria"""
-    # Example stocks to screen
-    example_stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS"]
-    
-    results = []
-    for symbol in example_stocks:
-        try:
-            quote = fetch_stock_quote(symbol)
-            indicators = get_technical_indicators(symbol)
-            
-            if quote and indicators and indicators.rsi:
-                if (min_rsi <= indicators.rsi <= max_rsi and 
-                    min_price <= quote["price"] <= max_price):
-                    results.append({
-                        "symbol": symbol,
-                        "price": quote["price"],
-                        "rsi": indicators.rsi,
-                        "sma_50": indicators.sma_50,
-                        "sma_200": indicators.sma_200
-                    })
-        except:
-            pass
-    
-    return {
-        "criteria": {
-            "rsi_range": f"{min_rsi}-{max_rsi}",
-            "price_range": f"{min_price}-{max_price}"
-        },
-        "results": results,
-        "count": len(results)
-    }
-
 @app.get("/api/v1/market-status")
 async def market_status():
-    """Get market status and top movers"""
+    """Get market status"""
     symbols = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS"]
     
     data = []
@@ -424,6 +387,9 @@ async def market_status():
         except:
             pass
     
+    if not data:
+        return {"market": "NSE", "message": "No data available. Please wait and try again.", "reason": "Rate limit"}
+    
     data = sorted(data, key=lambda x: x["change_percent"], reverse=True)
     
     return {
@@ -432,6 +398,15 @@ async def market_status():
         "top_gainers": data[:3],
         "top_losers": data[-3:],
         "total_stocks": len(data)
+    }
+
+@app.get("/api/v1/cache/status")
+async def cache_status():
+    """Check cache status"""
+    return {
+        "cached_items": len(cache),
+        "cache_keys": list(cache.keys()),
+        "last_api_call": last_api_call["time"]
     }
 
 if __name__ == "__main__":
