@@ -5,15 +5,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict
-import json
+from enum import Enum
 
 app = FastAPI(
     title="Financial Research AI Agent",
-    version="0.3.0",
-    description="Advanced AI-powered financial research with workflows and risk analysis"
+    version="0.4.0",
+    description="Complete personal finance management with expense tracking, budgeting, and planning"
 )
 
 app.add_middleware(
@@ -24,162 +23,175 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
-
 # ==================== Data Models ====================
 
-class InvestmentGoal(BaseModel):
+class ExpenseCategory(str, Enum):
+    FOOD = "Food"
+    TRANSPORT = "Transport"
+    UTILITIES = "Utilities"
+    ENTERTAINMENT = "Entertainment"
+    HEALTHCARE = "Healthcare"
+    SHOPPING = "Shopping"
+    EDUCATION = "Education"
+    OTHER = "Other"
+
+class Expense(BaseModel):
+    amount: float
+    category: ExpenseCategory
+    description: str
+    date: str
+    payment_method: Optional[str] = "Cash"
+
+class Budget(BaseModel):
+    category: ExpenseCategory
+    monthly_limit: float
+    current_month_spent: Optional[float] = 0
+
+class MutualFund(BaseModel):
     name: str
-    target_amount: float
-    current_amount: float
-    timeline_years: int
-    risk_level: str  # LOW, MEDIUM, HIGH
-    monthly_investment: float
+    category: str  # Equity, Debt, Hybrid
+    nav: float
+    one_year_return: float
+    three_year_return: float
+    five_year_return: float
+    risk_rating: str  # Low, Medium, High
 
-class SIPCalculation(BaseModel):
+class SIPComparison(BaseModel):
+    fund1_name: str
+    fund1_return: float
+    fund2_name: str
+    fund2_return: float
     monthly_investment: float
-    annual_return: float
     years: int
-    final_amount: Optional[float] = None
-    total_invested: Optional[float] = None
-    total_gains: Optional[float] = None
 
-class RiskProfile(BaseModel):
-    portfolio_value: float
-    volatility: Optional[float] = None
-    beta: Optional[float] = None
-    sharpe_ratio: Optional[float] = None
-    max_drawdown: Optional[float] = None
-    var_95: Optional[float] = None  # Value at Risk
-    risk_score: Optional[int] = None
+class InsurancePlan(BaseModel):
+    age: int
+    annual_income: float
+    dependents: int
+    existing_coverage: float
 
-class PriceAlert(BaseModel):
-    symbol: str
-    target_price: float
-    alert_type: str  # ABOVE, BELOW
-    is_active: bool = True
-    created_at: str = None
+class RetirementPlan(BaseModel):
+    current_age: int
+    retirement_age: int
+    current_savings: float
+    monthly_savings: float
+    expected_return: float
+    annual_expense: float
 
-class PortfolioOptimization(BaseModel):
-    symbols: List[str]
-    target_return: float
-    max_risk: float
-    optimized_weights: Optional[Dict[str, float]] = None
-    expected_return: Optional[float] = None
-    expected_risk: Optional[float] = None
+class DebtDetails(BaseModel):
+    debt_type: str  # Home Loan, Personal Loan, Credit Card, Auto Loan
+    principal_amount: float
+    interest_rate: float
+    tenure_months: int
+    monthly_emi: Optional[float] = None
 
-class AIAnalysis(BaseModel):
-    symbol: str
-    analysis: str
-    recommendation: str
-    confidence: float
-    reasoning: str
+class EmergencyFund(BaseModel):
+    monthly_expenses: float
+    months_covered: int = 6
 
-# ==================== Storage (Mock Database) ====================
+# ==================== Mock Database ====================
 
-goals_db = {}
-alerts_db = {}
-user_preferences = {}
+expenses_db = {}
+budgets_db = {}
+user_profile = {}
 
-# ==================== Core Calculations ====================
+# ==================== Calculations ====================
 
-def calculate_sip_returns(monthly: float, annual_return: float, years: int) -> Dict:
-    """Calculate SIP returns"""
-    monthly_rate = annual_return / 12 / 100
-    months = years * 12
+def calculate_emi(principal: float, rate: float, months: int) -> float:
+    """Calculate EMI (Equated Monthly Installment)"""
+    if rate == 0:
+        return principal / months
     
-    # Future Value of SIP formula
-    fv = monthly * (((1 + monthly_rate) ** months - 1) / monthly_rate) * (1 + monthly_rate)
-    total_invested = monthly * months
-    total_gains = fv - total_invested
-    
-    return {
-        "final_amount": round(fv, 2),
-        "total_invested": round(total_invested, 2),
-        "total_gains": round(total_gains, 2),
-        "months": months
-    }
+    monthly_rate = rate / 12 / 100
+    emi = principal * (monthly_rate * (1 + monthly_rate) ** months) / ((1 + monthly_rate) ** months - 1)
+    return round(emi, 2)
 
-def calculate_cagr(initial: float, final: float, years: int) -> float:
-    """Calculate Compound Annual Growth Rate"""
-    if initial <= 0:
-        return 0
-    return round(((final / initial) ** (1 / years) - 1) * 100, 2)
+def calculate_total_interest(principal: float, rate: float, months: int) -> float:
+    """Calculate total interest paid"""
+    emi = calculate_emi(principal, rate, months)
+    total_paid = emi * months
+    interest = total_paid - principal
+    return round(interest, 2)
 
-def calculate_portfolio_risk(portfolio_values: List[float]) -> Dict:
-    """Calculate portfolio risk metrics"""
-    import statistics
+def calculate_retirement_corpus(current_age: int, retirement_age: int, current_savings: float,
+                               monthly_savings: float, expected_return: float, annual_expense: float) -> Dict:
+    """Calculate retirement corpus needed"""
     
-    if len(portfolio_values) < 2:
-        return {"volatility": 0, "max_drawdown": 0}
+    years_to_retirement = retirement_age - current_age
+    years_in_retirement = 30  # Assume 30 years post-retirement
     
-    returns = [(portfolio_values[i] - portfolio_values[i-1]) / portfolio_values[i-1] 
-               for i in range(1, len(portfolio_values))]
+    # Future value of current savings
+    fv_current = current_savings * ((1 + expected_return/100) ** years_to_retirement)
     
-    volatility = statistics.stdev(returns) * 100 if len(returns) > 1 else 0
+    # Future value of monthly savings
+    monthly_rate = (expected_return / 100) / 12
+    months = years_to_retirement * 12
+    fv_monthly = monthly_savings * (((1 + monthly_rate) ** months - 1) / monthly_rate) * (1 + monthly_rate)
     
-    # Max Drawdown
-    max_dd = 0
-    peak = portfolio_values[0]
-    for value in portfolio_values:
-        if value > peak:
-            peak = value
-        dd = (peak - value) / peak * 100
-        if dd > max_dd:
-            max_dd = dd
+    # Total corpus at retirement
+    corpus_at_retirement = fv_current + fv_monthly
     
-    # VaR (Value at Risk) - 95% confidence
-    returns_sorted = sorted(returns)
-    var_index = int(len(returns_sorted) * 0.05)
-    var_95 = abs(returns_sorted[var_index]) * 100 if var_index < len(returns_sorted) else 0
+    # Annual expense adjusted for inflation (assume 5% inflation)
+    inflation = 0.05
+    annual_expense_at_retirement = annual_expense * ((1 + inflation) ** years_to_retirement)
+    
+    # Corpus needed for retirement (assume 3% withdrawal rate)
+    corpus_needed = annual_expense_at_retirement / 0.03
+    
+    # Shortfall or surplus
+    shortfall = max(0, corpus_needed - corpus_at_retirement)
     
     return {
-        "volatility": round(volatility, 2),
-        "max_drawdown": round(max_dd, 2),
-        "var_95": round(var_95, 2)
+        "current_savings": round(current_savings, 2),
+        "years_to_retirement": years_to_retirement,
+        "fv_current_savings": round(fv_current, 2),
+        "fv_monthly_savings": round(fv_monthly, 2),
+        "corpus_at_retirement": round(corpus_at_retirement, 2),
+        "annual_expense_at_retirement": round(annual_expense_at_retirement, 2),
+        "corpus_needed": round(corpus_needed, 2),
+        "shortfall": round(shortfall, 2),
+        "status": "On Track" if shortfall == 0 else f"Shortfall: ₹{shortfall:,.0f}"
     }
 
-def asset_allocation_recommendation(risk_level: str) -> Dict:
-    """Recommend asset allocation based on risk level"""
-    allocations = {
-        "LOW": {
-            "bonds": 60,
-            "stocks": 30,
-            "gold": 10,
-            "description": "Conservative - Capital preservation"
-        },
-        "MEDIUM": {
-            "bonds": 40,
-            "stocks": 50,
-            "gold": 10,
-            "description": "Balanced - Growth with stability"
-        },
-        "HIGH": {
-            "bonds": 20,
-            "stocks": 70,
-            "gold": 10,
-            "description": "Aggressive - Maximum growth"
-        }
-    }
-    return allocations.get(risk_level, allocations["MEDIUM"])
-
-def goal_recommendation(goal: InvestmentGoal) -> Dict:
-    """Recommend investment strategy for goal"""
-    required_annual_return = ((goal.target_amount / goal.current_amount) ** (1 / goal.timeline_years) - 1) * 100
+def calculate_insurance_need(age: int, annual_income: float, dependents: int, existing_coverage: float) -> Dict:
+    """Calculate life insurance need"""
     
-    monthly_needed = goal.target_amount / (goal.timeline_years * 12)
+    # Insurance need = Income replacement (10 years) + Children education + Spouse needs
+    income_replacement = annual_income * 10
+    education_cost = 5000000 if dependents > 0 else 0  # ₹50 lakh per child
+    spouse_needs = 2000000  # ₹20 lakh
+    
+    total_need = income_replacement + education_cost + spouse_needs
+    gap = max(0, total_need - existing_coverage)
     
     return {
-        "goal": goal.name,
-        "current": goal.current_amount,
-        "target": goal.target_amount,
-        "timeline": goal.timeline_years,
-        "required_annual_return": round(required_annual_return, 2),
-        "monthly_investment_needed": round(monthly_needed, 2),
-        "monthly_plan": goal.monthly_investment,
-        "feasible": goal.monthly_investment >= monthly_needed,
-        "allocation": asset_allocation_recommendation(goal.risk_level)
+        "age": age,
+        "annual_income": annual_income,
+        "dependents": dependents,
+        "existing_coverage": existing_coverage,
+        "income_replacement_need": round(income_replacement, 2),
+        "education_fund_need": round(education_cost, 2),
+        "spouse_security_need": round(spouse_needs, 2),
+        "total_need": round(total_need, 2),
+        "coverage_gap": round(gap, 2),
+        "recommended_coverage": round(gap + existing_coverage, 2),
+        "recommendation": "Term Insurance" if gap > 0 else "Adequate coverage"
+    }
+
+def calculate_emergency_fund(monthly_expenses: float, months: int = 6) -> Dict:
+    """Calculate emergency fund needed"""
+    
+    emergency_fund = monthly_expenses * months
+    
+    return {
+        "monthly_expenses": monthly_expenses,
+        "months_covered": months,
+        "emergency_fund_needed": round(emergency_fund, 2),
+        "where_to_keep": [
+            "Savings Account (3 months)",
+            "Liquid Mutual Funds (2 months)",
+            "Short-term FDs (1 month)"
+        ]
     }
 
 # ==================== API Endpoints ====================
@@ -188,320 +200,397 @@ def goal_recommendation(goal: InvestmentGoal) -> Dict:
 async def root():
     return {
         "message": "Financial Research AI Agent",
-        "version": "0.3.0",
-        "week": "3",
-        "features": ["LangGraph Workflows", "SIP Calculator", "Risk Analysis", "Investment Goals", "Alerts", "Portfolio Optimization"]
+        "version": "0.4.0",
+        "week": "4",
+        "features": ["Expense Tracking", "Budget Management", "Insurance Planning", "Retirement Planning", "Debt Management", "Emergency Fund"]
     }
 
 @app.get("/health")
 async def health():
     return {
         "status": "healthy",
-        "version": "0.3.0",
-        "week": "3",
+        "version": "0.4.0",
+        "week": "4",
         "features": [
-            "Advanced Portfolio Analysis",
-            "SIP Calculator",
-            "Risk Metrics",
-            "Investment Goals",
-            "Price Alerts",
-            "Portfolio Optimization"
+            "Expense Tracking",
+            "Budget Management",
+            "Monthly Reports",
+            "Insurance Planning",
+            "Retirement Planning",
+            "Debt Management",
+            "Emergency Fund"
         ]
     }
 
-# ==================== SIP Calculator ====================
+# ==================== Expense Tracking ====================
 
-@app.post("/api/v1/sip/calculate", response_model=SIPCalculation)
-async def calculate_sip(monthly_investment: float, annual_return: float, years: int):
-    """Calculate SIP returns"""
-    if monthly_investment <= 0 or annual_return < 0 or years <= 0:
-        raise HTTPException(status_code=400, detail="Invalid parameters")
-    
-    result = calculate_sip_returns(monthly_investment, annual_return, years)
-    
-    return SIPCalculation(
-        monthly_investment=monthly_investment,
-        annual_return=annual_return,
-        years=years,
-        final_amount=result["final_amount"],
-        total_invested=result["total_invested"],
-        total_gains=result["total_gains"]
-    )
-
-# ==================== Investment Goals ====================
-
-@app.post("/api/v1/goals/create")
-async def create_goal(goal: InvestmentGoal):
-    """Create investment goal"""
-    goal_id = f"goal_{len(goals_db)}"
-    goals_db[goal_id] = goal.dict()
-    
-    recommendation = goal_recommendation(goal)
+@app.post("/api/v1/expenses/add")
+async def add_expense(expense: Expense):
+    """Add an expense"""
+    expense_id = f"exp_{len(expenses_db)}"
+    expenses_db[expense_id] = expense.dict()
     
     return {
-        "goal_id": goal_id,
-        "status": "created",
-        "recommendation": recommendation
+        "expense_id": expense_id,
+        "status": "added",
+        "amount": expense.amount,
+        "category": expense.category,
+        "date": expense.date
     }
 
-@app.get("/api/v1/goals")
-async def get_goals():
-    """Get all goals"""
-    return {
-        "total_goals": len(goals_db),
-        "goals": list(goals_db.values())
-    }
-
-@app.get("/api/v1/goals/{goal_id}/analysis")
-async def analyze_goal(goal_id: str):
-    """Analyze goal progress and provide recommendations"""
-    if goal_id not in goals_db:
-        raise HTTPException(status_code=404, detail="Goal not found")
+@app.get("/api/v1/expenses")
+async def get_expenses(month: Optional[int] = None, year: Optional[int] = None):
+    """Get all expenses"""
+    total = sum(e["amount"] for e in expenses_db.values())
     
-    goal_data = goals_db[goal_id]
-    goal = InvestmentGoal(**goal_data)
-    
-    recommendation = goal_recommendation(goal)
+    by_category = {}
+    for expense in expenses_db.values():
+        category = expense["category"]
+        by_category[category] = by_category.get(category, 0) + expense["amount"]
     
     return {
-        "goal_id": goal_id,
-        "analysis": recommendation,
-        "action_items": [
-            f"Invest ₹{recommendation['monthly_investment_needed']:.2f} monthly",
-            f"Target return: {recommendation['required_annual_return']:.2f}% per year",
-            f"Allocation: {recommendation['allocation']['description']}"
-        ]
+        "total_expenses": len(expenses_db),
+        "total_amount": round(total, 2),
+        "by_category": {k: round(v, 2) for k, v in by_category.items()},
+        "expenses": list(expenses_db.values())
     }
 
-# ==================== Risk Analysis ====================
+@app.get("/api/v1/expenses/monthly-summary")
+async def monthly_summary(month: int, year: int):
+    """Get monthly expense summary"""
+    
+    total = 500000  # Mock total
+    food = 150000
+    transport = 50000
+    utilities = 30000
+    entertainment = 80000
+    shopping = 100000
+    other = 90000
+    
+    return {
+        "month": month,
+        "year": year,
+        "total_spent": total,
+        "breakdown": {
+            "Food": food,
+            "Transport": transport,
+            "Utilities": utilities,
+            "Entertainment": entertainment,
+            "Shopping": shopping,
+            "Other": other
+        },
+        "average_daily": round(total / 30, 2),
+        "trends": "Expenses up 5% vs last month"
+    }
 
-@app.post("/api/v1/risk/assess", response_model=RiskProfile)
-async def assess_risk(portfolio_value: float, portfolio_history: List[float] = None):
-    """Assess portfolio risk"""
-    
-    if portfolio_history is None:
-        portfolio_history = [portfolio_value] * 12
-    
-    risk_metrics = calculate_portfolio_risk(portfolio_history)
-    
-    volatility = risk_metrics.get("volatility", 0)
-    risk_score = min(100, int(volatility * 2))  # Simple risk score
-    
-    return RiskProfile(
-        portfolio_value=portfolio_value,
-        volatility=risk_metrics["volatility"],
-        beta=1.0,  # Placeholder
-        sharpe_ratio=round((10 - volatility / 10), 2) if volatility > 0 else 0,
-        max_drawdown=risk_metrics["max_drawdown"],
-        var_95=risk_metrics["var_95"],
-        risk_score=risk_score
-    )
+# ==================== Budget Management ====================
 
-# ==================== Price Alerts ====================
-
-@app.post("/api/v1/alerts/create")
-async def create_alert(symbol: str, target_price: float, alert_type: str):
-    """Create price alert"""
-    if alert_type not in ["ABOVE", "BELOW"]:
-        raise HTTPException(status_code=400, detail="Invalid alert type")
-    
-    alert_id = f"alert_{len(alerts_db)}"
-    alerts_db[alert_id] = {
-        "symbol": symbol,
-        "target_price": target_price,
-        "alert_type": alert_type,
-        "created_at": datetime.now().isoformat(),
-        "is_active": True
+@app.post("/api/v1/budget/set")
+async def set_budget(category: ExpenseCategory, monthly_limit: float):
+    """Set budget for category"""
+    budget_id = f"budget_{category}"
+    budgets_db[budget_id] = {
+        "category": category,
+        "monthly_limit": monthly_limit,
+        "current_month_spent": 0
     }
     
     return {
-        "alert_id": alert_id,
-        "status": "created",
-        "message": f"Alert set: {symbol} when price goes {alert_type} ₹{target_price}"
+        "budget_id": budget_id,
+        "category": category,
+        "monthly_limit": monthly_limit,
+        "status": "created"
     }
 
-@app.get("/api/v1/alerts")
-async def get_alerts():
-    """Get all alerts"""
-    return {
-        "total_alerts": len(alerts_db),
-        "alerts": list(alerts_db.values())
-    }
-
-@app.delete("/api/v1/alerts/{alert_id}")
-async def delete_alert(alert_id: str):
-    """Delete alert"""
-    if alert_id not in alerts_db:
-        raise HTTPException(status_code=404, detail="Alert not found")
+@app.get("/api/v1/budget/summary")
+async def budget_summary():
+    """Get budget summary"""
     
-    del alerts_db[alert_id]
-    return {"status": "deleted", "alert_id": alert_id}
-
-# ==================== Portfolio Optimization ====================
-
-@app.post("/api/v1/portfolio/optimize")
-async def optimize_portfolio(symbols: List[str], target_return: float = 12.0, max_risk: float = 15.0):
-    """Optimize portfolio allocation"""
+    budgets = [
+        {"category": "Food", "limit": 100000, "spent": 85000, "remaining": 15000},
+        {"category": "Transport", "limit": 20000, "spent": 18000, "remaining": 2000},
+        {"category": "Entertainment", "limit": 50000, "spent": 45000, "remaining": 5000},
+        {"category": "Shopping", "limit": 80000, "spent": 75000, "remaining": 5000},
+    ]
     
-    # Simplified optimization using equal weights
-    num_symbols = len(symbols)
-    equal_weight = 1 / num_symbols if num_symbols > 0 else 0
-    
-    optimized_weights = {symbol: round(equal_weight, 2) for symbol in symbols}
-    
-    # Estimate returns and risk
-    estimated_return = target_return
-    estimated_risk = max_risk * 0.8  # Assume 80% of max risk
+    total_limit = sum(b["limit"] for b in budgets)
+    total_spent = sum(b["spent"] for b in budgets)
+    total_remaining = sum(b["remaining"] for b in budgets)
     
     return {
-        "symbols": symbols,
-        "optimized_weights": optimized_weights,
-        "expected_return": round(estimated_return, 2),
-        "expected_risk": round(estimated_risk, 2),
-        "recommendation": "Proceed with allocation" if estimated_risk <= max_risk else "Risk exceeds limit"
+        "total_budget": total_limit,
+        "total_spent": total_spent,
+        "total_remaining": total_remaining,
+        "budget_utilization": round(total_spent / total_limit * 100, 2),
+        "budgets": budgets,
+        "alert": "Over budget in Food category" if any(b["spent"] > b["limit"] for b in budgets) else "On track"
     }
 
-# ==================== AI Workflows (LangGraph Simulation) ====================
+# ==================== Debt Management ====================
 
-@app.post("/api/v1/ai/analyze-portfolio")
-async def ai_analyze_portfolio(symbols: List[str]):
-    """AI analysis workflow for portfolio"""
+@app.post("/api/v1/debt/calculate-emi")
+async def calculate_debt_emi(debt_type: str, principal: float, interest_rate: float, tenure_months: int):
+    """Calculate EMI for debt"""
     
-    analysis = f"""
-    Portfolio Analysis Report
-    
-    Symbols: {', '.join(symbols)}
-    
-    Recommendations:
-    1. Diversify across sectors
-    2. Monitor market trends
-    3. Review quarterly performance
-    4. Rebalance annually
-    
-    Risk Assessment: MODERATE
-    Expected Return: 12-15% annually
-    Recommendation: HOLD with periodic reviews
-    """
+    emi = calculate_emi(principal, interest_rate, tenure_months)
+    total_interest = calculate_total_interest(principal, interest_rate, tenure_months)
+    total_amount = principal + total_interest
     
     return {
-        "portfolio": symbols,
-        "analysis": analysis,
-        "confidence": 0.85,
-        "next_review": (datetime.now() + timedelta(days=90)).isoformat()
+        "debt_type": debt_type,
+        "principal": principal,
+        "interest_rate": interest_rate,
+        "tenure_months": tenure_months,
+        "monthly_emi": emi,
+        "total_interest": round(total_interest, 2),
+        "total_amount": round(total_amount, 2),
+        "payoff_date": (datetime.now() + timedelta(days=tenure_months*30)).isoformat()
     }
 
-@app.post("/api/v1/ai/stock-recommendation")
-async def ai_stock_recommendation(symbol: str):
-    """AI recommendation for stock"""
+@app.post("/api/v1/debt/prepayment-strategy")
+async def debt_prepayment(principal: float, interest_rate: float, tenure_months: int, extra_payment: float):
+    """Calculate prepayment impact"""
     
-    recommendations = {
-        "RELIANCE.NS": "HOLD - Stable dividend stock",
-        "TCS.NS": "BUY - Strong fundamentals",
-        "INFY.NS": "BUY - Growth potential",
-        "HDFC.NS": "HOLD - Safe investment",
-        "ICICIBANK.NS": "BUY - Banking sector growth"
-    }
+    normal_emi = calculate_emi(principal, interest_rate, tenure_months)
+    new_emi = normal_emi + extra_payment
     
-    recommendation = recommendations.get(symbol, "HOLD - Further analysis needed")
+    normal_total_interest = calculate_total_interest(principal, interest_rate, tenure_months)
+    
+    # Simplified - interest saved approximately
+    interest_saved = (extra_payment / normal_emi) * normal_total_interest * 0.3
+    
+    months_saved = int((extra_payment / normal_emi) * tenure_months * 0.2)
     
     return {
-        "symbol": symbol,
-        "recommendation": recommendation,
-        "confidence": 0.80,
-        "reasoning": "Based on technical and fundamental analysis",
-        "time_horizon": "6-12 months"
+        "normal_emi": round(normal_emi, 2),
+        "new_emi_with_extra": round(new_emi, 2),
+        "extra_payment": extra_payment,
+        "interest_saved": round(interest_saved, 2),
+        "months_saved": months_saved,
+        "new_tenure": tenure_months - months_saved,
+        "recommendation": f"Pay extra ₹{extra_payment} monthly to save ₹{interest_saved:,.0f}"
     }
 
-@app.get("/api/v1/ai/market-sentiment")
-async def ai_market_sentiment():
-    """AI market sentiment analysis"""
+# ==================== Insurance Planning ====================
+
+@app.post("/api/v1/insurance/needs-analysis")
+async def insurance_needs(age: int, annual_income: float, dependents: int = 0, existing_coverage: float = 0):
+    """Analyze insurance needs"""
+    
+    analysis = calculate_insurance_need(age, annual_income, dependents, existing_coverage)
+    
+    return analysis
+
+@app.get("/api/v1/insurance/comparison")
+async def insurance_comparison():
+    """Compare insurance products"""
     
     return {
-        "overall_sentiment": "BULLISH",
-        "confidence": 0.75,
-        "key_drivers": [
-            "Strong GDP growth",
-            "Stable inflation",
-            "Corporate earnings recovery",
-            "Positive FII flows"
-        ],
-        "risks": [
-            "Geopolitical tensions",
-            "Rate hike concerns",
-            "Global slowdown"
-        ],
-        "recommendation": "Maintain balanced portfolio",
-        "update_time": datetime.now().isoformat()
-    }
-
-# ==================== Advanced Analysis ====================
-
-@app.get("/api/v1/analysis/tax-planning")
-async def tax_planning_analysis(annual_income: float, investment_amount: float):
-    """Tax planning recommendations"""
-    
-    tax_saving = min(investment_amount, 150000)  # India's standard deduction
-    tax_saved = tax_saving * 0.30  # Assume 30% tax bracket
-    
-    return {
-        "annual_income": annual_income,
-        "investment_amount": investment_amount,
-        "tax_eligible_amount": tax_saving,
-        "estimated_tax_saved": round(tax_saved, 2),
-        "instruments": [
-            "ELSS Mutual Funds",
-            "NPS (National Pension Scheme)",
-            "Life Insurance Premium",
-            "Fixed Deposits"
-        ],
-        "recommendation": "Invest in ELSS for tax efficiency"
-    }
-
-@app.get("/api/v1/analysis/rebalancing")
-async def portfolio_rebalancing(current_allocation: Dict[str, float], target_allocation: Dict[str, float]):
-    """Portfolio rebalancing analysis"""
-    
-    rebalancing_trades = {}
-    for asset, target in target_allocation.items():
-        current = current_allocation.get(asset, 0)
-        difference = target - current
-        if difference != 0:
-            rebalancing_trades[asset] = {
-                "action": "BUY" if difference > 0 else "SELL",
-                "amount": abs(difference),
-                "reason": "Rebalance to target allocation"
+        "products": [
+            {
+                "name": "Term Life Insurance",
+                "coverage": "₹50 lakh",
+                "premium": "₹500/month",
+                "best_for": "Young professionals",
+                "features": ["Pure protection", "Affordable", "No maturity benefit"]
+            },
+            {
+                "name": "Whole Life Insurance",
+                "coverage": "₹50 lakh",
+                "premium": "₹5000/month",
+                "best_for": "Wealth creation",
+                "features": ["Coverage + savings", "Maturity benefit", "High premium"]
+            },
+            {
+                "name": "ULIP",
+                "coverage": "₹50 lakh",
+                "premium": "₹2000/month",
+                "best_for": "Long-term growth",
+                "features": ["Market-linked returns", "Flexible", "Moderate costs"]
             }
-    
-    return {
-        "current_allocation": current_allocation,
-        "target_allocation": target_allocation,
-        "rebalancing_trades": rebalancing_trades,
-        "frequency": "Quarterly or when drift > 5%"
+        ]
     }
 
-@app.get("/api/v1/analysis/ltcg-tax")
-async def ltcg_tax_analysis(purchase_price: float, current_price: float, holding_days: int):
-    """Long-term capital gains tax analysis"""
+# ==================== Retirement Planning ====================
+
+@app.post("/api/v1/retirement/corpus-calculation")
+async def retirement_corpus(current_age: int, retirement_age: int, current_savings: float,
+                           monthly_savings: float, expected_return: float, annual_expense: float):
+    """Calculate retirement corpus needed"""
     
-    gain = current_price - purchase_price
-    is_ltcg = holding_days >= 365
+    analysis = calculate_retirement_corpus(current_age, retirement_age, current_savings,
+                                          monthly_savings, expected_return, annual_expense)
     
-    if is_ltcg:
-        tax_rate = 0.20  # 20% LTCG tax in India
-        tax = gain * tax_rate if gain > 0 else 0
-    else:
-        tax_rate = 0.30  # 30% STCG tax (approximate)
-        tax = gain * tax_rate if gain > 0 else 0
+    return analysis
+
+@app.get("/api/v1/retirement/strategies")
+async def retirement_strategies():
+    """Get retirement planning strategies"""
     
     return {
-        "purchase_price": purchase_price,
-        "current_price": current_price,
-        "gain": gain,
-        "holding_days": holding_days,
-        "is_long_term": is_ltcg,
-        "tax_rate": f"{tax_rate * 100}%",
-        "estimated_tax": round(tax, 2),
-        "net_profit": round(gain - tax, 2)
+        "strategies": [
+            {
+                "name": "Aggressive Growth",
+                "allocation": "80% Stocks, 20% Bonds",
+                "suitable_for": "Age 25-40",
+                "returns": "12-15% annually",
+                "risk": "High"
+            },
+            {
+                "name": "Balanced Growth",
+                "allocation": "60% Stocks, 40% Bonds",
+                "suitable_for": "Age 40-50",
+                "returns": "9-12% annually",
+                "risk": "Medium"
+            },
+            {
+                "name": "Conservative",
+                "allocation": "40% Stocks, 60% Bonds",
+                "suitable_for": "Age 50+",
+                "returns": "7-9% annually",
+                "risk": "Low"
+            }
+        ]
+    }
+
+# ==================== Emergency Fund ====================
+
+@app.post("/api/v1/emergency-fund/calculate")
+async def calculate_emergency_fund_endpoint(monthly_expenses: float, months: int = 6):
+    """Calculate emergency fund needed"""
+    
+    result = calculate_emergency_fund(monthly_expenses, months)
+    
+    return result
+
+@app.get("/api/v1/emergency-fund/guidelines")
+async def emergency_fund_guidelines():
+    """Get emergency fund guidelines"""
+    
+    return {
+        "guidelines": [
+            {
+                "life_stage": "Young Single",
+                "months_needed": 3,
+                "reason": "Low dependents, stable income"
+            },
+            {
+                "life_stage": "Married with Family",
+                "months_needed": 6,
+                "reason": "Multiple dependents, fixed expenses"
+            },
+            {
+                "life_stage": "Self-Employed",
+                "months_needed": 12,
+                "reason": "Irregular income, uncertain business"
+            },
+            {
+                "life_stage": "Pre-Retirement",
+                "months_needed": 12,
+                "reason": "Transition planning"
+            }
+        ],
+        "where_to_keep": {
+            "3_months": "Savings Account (0.5% interest)",
+            "2_months": "Liquid Mutual Funds (3-4% returns)",
+            "1_month": "Short-term FDs (4-5% returns)"
+        }
+    }
+
+# ==================== Financial Reports ====================
+
+@app.get("/api/v1/reports/personal-finance")
+async def personal_finance_report():
+    """Generate personal finance report"""
+    
+    return {
+        "report_date": datetime.now().isoformat(),
+        "income": {
+            "salary": 500000,
+            "bonus": 100000,
+            "other": 50000,
+            "total": 650000
+        },
+        "expenses": {
+            "fixed": 200000,
+            "variable": 250000,
+            "discretionary": 100000,
+            "total": 550000
+        },
+        "savings": 100000,
+        "savings_rate": 15.4,
+        "net_worth": 2500000,
+        "recommendations": [
+            "Increase emergency fund to 6 months",
+            "Review insurance coverage",
+            "Start retirement planning",
+            "Optimize tax planning"
+        ]
+    }
+
+@app.get("/api/v1/reports/debt-analysis")
+async def debt_analysis_report():
+    """Analyze debt portfolio"""
+    
+    return {
+        "total_debt": 1500000,
+        "debts": [
+            {
+                "type": "Home Loan",
+                "principal": 1000000,
+                "outstanding": 800000,
+                "rate": 6.5,
+                "remaining_tenure": 180,
+                "monthly_emi": 6500
+            },
+            {
+                "type": "Personal Loan",
+                "principal": 500000,
+                "outstanding": 300000,
+                "rate": 12,
+                "remaining_tenure": 24,
+                "monthly_emi": 14000
+            }
+        ],
+        "total_monthly_emi": 20500,
+        "dti_ratio": 3.2,
+        "recommendation": "Debt manageable. Focus on home loan prepayment"
+    }
+
+# ==================== Financial Wellness ====================
+
+@app.get("/api/v1/wellness/financial-score")
+async def financial_wellness_score():
+    """Calculate financial wellness score"""
+    
+    return {
+        "overall_score": 72,
+        "out_of": 100,
+        "categories": {
+            "Income Stability": 85,
+            "Expense Management": 70,
+            "Savings Rate": 65,
+            "Debt Management": 75,
+            "Insurance Coverage": 60,
+            "Retirement Planning": 55,
+            "Emergency Fund": 80,
+            "Investment Diversity": 70
+        },
+        "strengths": [
+            "Good expense tracking",
+            "Adequate emergency fund",
+            "Regular savings"
+        ],
+        "areas_to_improve": [
+            "Increase retirement savings",
+            "Review insurance coverage",
+            "Diversify investments"
+        ],
+        "next_steps": [
+            "Complete insurance gap analysis",
+            "Start retirement planning",
+            "Review and rebalance portfolio"
+        ]
     }
 
 if __name__ == "__main__":
