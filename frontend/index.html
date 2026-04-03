@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Artha — Indian Financial Research Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<div data-component="sidebar.html"></div>
+
+<!-- MAIN -->
+<main class="main">
+  <!-- TICKER TAPE -->
+  <div data-component="ticker.html"></div>
+  <!-- TOPBAR -->
+  <div data-component="topbar.html"></div>
+  <!-- CONTENT -->
+  <article class="content" id="main-content">
+
+<!-- ============ DASHBOARD ============ -->
+<div class="section active" id="sec-dashboard">
+  <div class="index-strip" id="idx-strip">
+    <div class="idx-card"><div class="idx-name">NIFTY 50</div><div class="idx-val">22,847.55</div><div class="idx-chg up">▲ 123.45 (+0.54%)</div></div>
+    <div class="idx-card"><div class="idx-name">SENSEX</div><div class="idx-val">75,342.80</div><div class="idx-chg up">▲ 412.30 (+0.55%)</div></div>
+    <div class="idx-card"><div class="idx-name">NIFTY BANK</div><div class="idx-val">47,823.40</div><div class="idx-chg dn">▼ 87.60 (-0.18%)</div></div>
+    <div class="idx-card"><div class="idx-name">NIFTY IT</div><div class="idx-val">35,678.25</div><div class="idx-chg up">▲ 234.50 (+0.66%)</div></div>
+    <div class="idx-card"><div class="idx-name">NIFTY PHARMA</div><div class="idx-val">19,234.70</div><div class="idx-chg up">▲ 145.30 (+0.76%)</div></div>
+    <div class="idx-card"><div class="idx-name">NIFTY AUTO</div><div class="idx-val">23,456.80</div><div class="idx-chg up">▲ 321.40 (+1.39%)</div></div>
+  </div>
+
+  <div class="grid-4">
+    <div class="card"><div class="card-header"><span class="card-title">Market Breadth</span><div class="card-icon ic-green">📊</div></div><div class="card-value" style="color:var(--green)">1,234</div><div class="card-change"><span class="up">▲ Advances</span>&nbsp;&nbsp;<span class="dn">▼ 876 Declines</span></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Portfolio Value</span><div class="card-icon ic-gold">💼</div></div><div class="card-value">₹0</div><div class="card-change neu">Add holdings in Portfolio tab</div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Wellness Score</span><div class="card-icon ic-blue">⬡</div></div><div class="card-value">72<span style="font-size:1rem;color:var(--text3)">/100</span></div><div class="card-change"><span style="color:var(--gold)">B+ Grade</span></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">Monthly Savings</span><div class="card-icon ic-green">💰</div></div><div class="card-value">₹20,000</div><div class="card-change up">21.1% savings rate</div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Top Gainers & Losers</span></div>
+      <table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Signal</th></tr></thead>
+      <tbody id="top-movers-table">
+        <tr><td>TATAMOTORS</td><td>₹923.15</td><td class="up">+3.20%</td><td><span class="pill pill-buy">BUY</span></td></tr>
+        <tr><td>ADANIPORTS</td><td>₹1,234.70</td><td class="up">+2.30%</td><td><span class="pill pill-buy">BUY</span></td></tr>
+        <tr><td>MARUTI</td><td>₹10,876.40</td><td class="up">+2.10%</td><td><span class="pill pill-buy">BUY</span></td></tr>
+        <tr><td>WIPRO</td><td>₹471.85</td><td class="dn">-1.10%</td><td><span class="pill pill-sell">SELL</span></td></tr>
+        <tr><td>BAJFINANCE</td><td>₹6,734.80</td><td class="dn">-0.90%</td><td><span class="pill pill-hold">HOLD</span></td></tr>
+        <tr><td>ICICIBANK</td><td>₹1,089.70</td><td class="dn">-0.60%</td><td><span class="pill pill-hold">HOLD</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Financial Wellness Score</span></div>
+      <div id="wellness-bars">
+        <div class="score-item"><span class="score-name">Income Stability</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:85%"></div></div><span class="score-num">85</span></div>
+        <div class="score-item"><span class="score-name">Expense Management</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:70%"></div></div><span class="score-num">70</span></div>
+        <div class="score-item"><span class="score-name">Savings Rate</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:65%"></div></div><span class="score-num">65</span></div>
+        <div class="score-item"><span class="score-name">Debt Management</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:75%"></div></div><span class="score-num">75</span></div>
+        <div class="score-item"><span class="score-name">Insurance Coverage</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:60%"></div></div><span class="score-num">60</span></div>
+        <div class="score-item"><span class="score-name">Retirement Planning</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:55%"></div></div><span class="score-num">55</span></div>
+        <div class="score-item"><span class="score-name">Emergency Fund</span><div class="score-bar" style="flex:1;margin:0 10px"><div class="score-fill" style="width:80%"></div></div><span class="score-num">80</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Indian Market — Stock Universe</span></div>
+    <table>
+      <thead><tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Price</th><th>Change</th><th>P/E</th><th>Mkt Cap</th></tr></thead>
+      <tbody>
+        <tr><td>RELIANCE</td><td>Reliance Industries</td><td><span class="badge badge-gold">Energy</span></td><td>₹2,847.50</td><td class="up">+1.20%</td><td>28.4</td><td>₹19.23L Cr</td></tr>
+        <tr><td>TCS</td><td>Tata Consultancy Services</td><td><span class="badge badge-blue">IT</span></td><td>₹3,921.15</td><td class="dn">-0.40%</td><td>31.2</td><td>₹14.32L Cr</td></tr>
+        <tr><td>INFY</td><td>Infosys</td><td><span class="badge badge-blue">IT</span></td><td>₹1,612.30</td><td class="up">+0.80%</td><td>25.6</td><td>₹6.70L Cr</td></tr>
+        <tr><td>HDFCBANK</td><td>HDFC Bank</td><td><span class="badge badge-green">Banking</span></td><td>₹1,723.45</td><td class="up">+0.30%</td><td>20.1</td><td>₹12.88L Cr</td></tr>
+        <tr><td>TATAMOTORS</td><td>Tata Motors</td><td><span class="badge badge-gold">Auto</span></td><td>₹923.15</td><td class="up">+3.20%</td><td>12.4</td><td>₹3.03L Cr</td></tr>
+        <tr><td>SBIN</td><td>State Bank of India</td><td><span class="badge badge-green">Banking</span></td><td>₹812.45</td><td class="dn">-0.20%</td><td>10.2</td><td>₹7.25L Cr</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ STOCKS ============ -->
+<div class="section" id="sec-stocks">
+  <div class="search-bar">
+    <input class="form-input" id="stock-sym-input" placeholder="Enter NSE Symbol: RELIANCE, TCS, INFY..." style="flex:1" onkeyup="if(event.key==='Enter')fetchStock()">
+    <select class="form-input form-select" id="stock-ex" style="width:110px">
+      <option value="NSE">NSE</option>
+      <option value="BSE">BSE</option>
+    </select>
+    <select class="form-input form-select" id="stock-period" style="width:110px">
+      <option value="1mo">1 Month</option>
+      <option value="3mo" selected>3 Months</option>
+      <option value="6mo">6 Months</option>
+      <option value="1y">1 Year</option>
+    </select>
+    <button class="btn btn-gold" onclick="fetchStock()">🔍 Analyse</button>
+  </div>
+  <div id="stock-result-area">
+    <div class="no-data">Search for a stock symbol to view analysis</div>
+  </div>
+</div>
+
+<!-- ============ MUTUAL FUNDS ============ -->
+<div class="section" id="sec-mf">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'mf-tab')">All Funds</div>
+    <div class="tab" onclick="switchTab(this,'mf-tab')">Compare Funds</div>
+    <div class="tab" onclick="switchTab(this,'mf-tab')">SIP Projection</div>
+  </div>
+  <div class="tab-content active" id="mf-tab-0">
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <select class="form-input form-select" id="mf-category" style="width:200px" onchange="loadMF()">
+        <option value="">All Categories</option>
+        <option value="Equity">Equity</option>
+        <option value="Debt">Debt</option>
+        <option value="Hybrid">Hybrid</option>
+      </select>
+      <select class="form-input form-select" id="mf-risk" style="width:160px" onchange="loadMF()">
+        <option value="">All Risk Levels</option>
+        <option value="Low">Low Risk</option>
+        <option value="Moderate">Moderate</option>
+        <option value="High">High Risk</option>
+      </select>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Fund Name</th><th>Category</th><th>NAV</th><th>1Y Return</th><th>3Y Return</th><th>5Y Return</th><th>Risk</th></tr></thead>
+        <tbody id="mf-table-body"><tr><td colspan="7" class="loading">Loading funds...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="tab-content" id="mf-tab-1">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Compare Two Funds</span></div>
+        <div class="form-group"><label class="form-label">Fund 1 (name keyword)</label><input class="form-input" id="cmp-f1" placeholder="e.g. Mirae Asset"></div>
+        <div class="form-group"><label class="form-label">Fund 2 (name keyword)</label><input class="form-input" id="cmp-f2" placeholder="e.g. Axis Bluechip"></div>
+        <div class="form-group"><label class="form-label">Monthly SIP (₹)</label><input class="form-input" id="cmp-sip" type="number" value="5000"></div>
+        <div class="form-group"><label class="form-label">Investment Period (Years)</label><input class="form-input" id="cmp-yrs" type="number" value="10"></div>
+        <button class="btn btn-gold btn-full" onclick="compareFunds()">Compare Funds</button>
+        <div id="cmp-result"></div>
+      </div>
+      <div class="card" id="cmp-chart-card" style="display:none">
+        <div class="card-header"><span class="card-title">Growth Comparison</span></div>
+        <div class="chart-wrap-lg"><canvas id="cmp-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="mf-tab-2">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">SIP Projection Calculator</span></div>
+        <div class="form-group"><label class="form-label">Monthly SIP (₹)</label><input class="form-input" id="sip2-amt" type="number" value="5000"></div>
+        <div class="form-group"><label class="form-label">Expected Annual Return (%)</label><input class="form-input" id="sip2-ret" type="number" value="12"></div>
+        <div class="form-group"><label class="form-label">Investment Period (Years)</label><input class="form-input" id="sip2-yrs" type="number" value="15"></div>
+        <button class="btn btn-gold btn-full" onclick="calcSIP2()">Calculate</button>
+        <div id="sip2-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Growth Chart</span></div>
+        <div class="chart-wrap-lg"><canvas id="sip2-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SIP ============ -->
+<div class="section" id="sec-sip">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'sip-tab')">SIP Calculator</div>
+    <div class="tab" onclick="switchTab(this,'sip-tab')">Goal Planner</div>
+    <div class="tab" onclick="switchTab(this,'sip-tab')">Step-Up SIP</div>
+  </div>
+  <!-- SIP Basic -->
+  <div class="tab-content active" id="sip-tab-0">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">SIP Return Calculator</span></div>
+        <div class="form-group"><label class="form-label">Monthly Investment (₹)</label><input class="form-input" id="sip-amt" type="number" value="10000"></div>
+        <div class="form-group"><label class="form-label">Expected Annual Return (%)</label><input class="form-input" id="sip-ret" type="number" value="12"></div>
+        <div class="form-group"><label class="form-label">Investment Period (Years)</label><input class="form-input" id="sip-yrs" type="number" value="20"></div>
+        <button class="btn btn-gold btn-full" onclick="calcSIPBasic()">Calculate Returns</button>
+        <div id="sip-basic-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Wealth Growth</span></div>
+        <div class="chart-wrap-lg"><canvas id="sip-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <!-- Goal Planner -->
+  <div class="tab-content" id="sip-tab-1">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Goal-Based SIP Planner</span></div>
+        <div class="form-group"><label class="form-label">Target Amount (₹)</label><input class="form-input" id="goal-amt" type="number" value="10000000" placeholder="1 Crore"></div>
+        <div class="form-group"><label class="form-label">Time Horizon (Years)</label><input class="form-input" id="goal-yrs" type="number" value="15"></div>
+        <div class="form-group"><label class="form-label">Expected Annual Return (%)</label><input class="form-input" id="goal-ret" type="number" value="12"></div>
+        <button class="btn btn-gold btn-full" onclick="calcGoalSIP()">Find Required SIP</button>
+        <div id="goal-result"></div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card-header"><span class="card-title">Popular Goals (India)</span></div>
+        <button class="btn btn-outline" onclick="setGoal(10000000,15)">🏠 Home Down Payment — ₹1 Cr in 15 Yrs</button>
+        <button class="btn btn-outline" onclick="setGoal(2000000,10)">🎓 Child Education — ₹20 L in 10 Yrs</button>
+        <button class="btn btn-outline" onclick="setGoal(50000000,25)">🌅 Retirement Corpus — ₹5 Cr in 25 Yrs</button>
+        <button class="btn btn-outline" onclick="setGoal(1500000,5)">🚗 Car Purchase — ₹15 L in 5 Yrs</button>
+        <button class="btn btn-outline" onclick="setGoal(5000000,20)">✈️ World Tour — ₹50 L in 20 Yrs</button>
+      </div>
+    </div>
+  </div>
+  <!-- Step-Up SIP -->
+  <div class="tab-content" id="sip-tab-2">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Step-Up SIP Calculator</span></div>
+        <div class="form-group"><label class="form-label">Initial Monthly SIP (₹)</label><input class="form-input" id="sup-amt" type="number" value="5000"></div>
+        <div class="form-group"><label class="form-label">Annual Step-Up (%)</label><input class="form-input" id="sup-pct" type="number" value="10"></div>
+        <div class="form-group"><label class="form-label">Expected Annual Return (%)</label><input class="form-input" id="sup-ret" type="number" value="12"></div>
+        <div class="form-group"><label class="form-label">Investment Period (Years)</label><input class="form-input" id="sup-yrs" type="number" value="20"></div>
+        <button class="btn btn-gold btn-full" onclick="calcStepUpSIP()">Calculate</button>
+        <div id="sup-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Regular vs Step-Up SIP</span></div>
+        <div class="chart-wrap-lg"><canvas id="sup-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAX ============ -->
+<div class="section" id="sec-tax">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'tax-tab')">LTCG Calculator</div>
+    <div class="tab" onclick="switchTab(this,'tax-tab')">STCG Calculator</div>
+    <div class="tab" onclick="switchTab(this,'tax-tab')">80C Deductions</div>
+  </div>
+  <!-- LTCG -->
+  <div class="tab-content active" id="tax-tab-0">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Long Term Capital Gains Tax</span></div>
+        <div class="form-group"><label class="form-label">Asset Type</label>
+          <select class="form-input form-select" id="ltcg-type">
+            <option value="equity">Equity / Equity MF (>1 year)</option>
+            <option value="debt">Debt MF / Bonds (>3 years)</option>
+            <option value="real_estate">Real Estate (>2 years)</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Purchase Price per Unit (₹)</label><input class="form-input" id="ltcg-buy" type="number" value="500"></div>
+        <div class="form-group"><label class="form-label">Sale Price per Unit (₹)</label><input class="form-input" id="ltcg-sell" type="number" value="800"></div>
+        <div class="form-group"><label class="form-label">Number of Units</label><input class="form-input" id="ltcg-units" type="number" value="100"></div>
+        <button class="btn btn-gold btn-full" onclick="calcLTCG()">Calculate LTCG Tax</button>
+        <div id="ltcg-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">LTCG Tax Rules (India FY 2024-25)</span></div>
+        <div class="result-box">
+          <div class="result-row"><span class="result-label">Equity / Equity MF</span><span class="result-value">10% above ₹1 Lakh</span></div>
+          <div class="result-row"><span class="result-label">Holding period (Equity)</span><span class="result-value">> 1 Year</span></div>
+          <div class="result-row"><span class="result-label">Debt MF / Bonds</span><span class="result-value">20% with indexation</span></div>
+          <div class="result-row"><span class="result-label">Holding period (Debt)</span><span class="result-value">> 3 Years</span></div>
+          <div class="result-row"><span class="result-label">Real Estate</span><span class="result-value">20% with indexation</span></div>
+          <div class="result-row"><span class="result-label">Health & Education Cess</span><span class="result-value">4% on tax</span></div>
+          <div class="result-row"><span class="result-label">Surcharge (>₹50L income)</span><span class="result-value">10% on tax</span></div>
+          <div class="result-row"><span class="result-label">Tax Harvesting</span><span class="result-value">Offset gains with losses</span></div>
+        </div>
+        <div class="warn-msg" style="margin-top:12px">💡 Tip: Book profits up to ₹1 Lakh per year in equity — it's completely tax-free!</div>
+      </div>
+    </div>
+  </div>
+  <!-- STCG -->
+  <div class="tab-content" id="tax-tab-1">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Short Term Capital Gains Tax</span></div>
+        <div class="form-group"><label class="form-label">Asset Type</label>
+          <select class="form-input form-select" id="stcg-type">
+            <option value="equity">Equity / Equity MF (< 1 year)</option>
+            <option value="debt">Debt / Other (< 3 years)</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Purchase Price per Unit (₹)</label><input class="form-input" id="stcg-buy" type="number" value="500"></div>
+        <div class="form-group"><label class="form-label">Sale Price per Unit (₹)</label><input class="form-input" id="stcg-sell" type="number" value="650"></div>
+        <div class="form-group"><label class="form-label">Number of Units</label><input class="form-input" id="stcg-units" type="number" value="50"></div>
+        <button class="btn btn-gold btn-full" onclick="calcSTCG()">Calculate STCG Tax</button>
+        <div id="stcg-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">STCG Tax Rules</span></div>
+        <div class="result-box">
+          <div class="result-row"><span class="result-label">Equity (STT paid)</span><span class="result-value">15% flat</span></div>
+          <div class="result-row"><span class="result-label">Holding period</span><span class="result-value">< 1 Year</span></div>
+          <div class="result-row"><span class="result-label">Debt / Other assets</span><span class="result-value">As per income tax slab</span></div>
+          <div class="result-row"><span class="result-label">Health & Education Cess</span><span class="result-value">4%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 80C -->
+  <div class="tab-content" id="tax-tab-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Section 80C Instruments — ₹1.5 Lakh Limit</span></div>
+      <table>
+        <thead><tr><th>Instrument</th><th>Lock-In</th><th>Returns</th><th>Recommended</th></tr></thead>
+        <tbody>
+          <tr><td>ELSS Mutual Funds</td><td>3 Years</td><td>12-15% (market linked)</td><td><span class="badge badge-green">✓ Best</span></td></tr>
+          <tr><td>PPF (Public Provident Fund)</td><td>15 Years</td><td>7.1% tax-free</td><td><span class="badge badge-green">✓ Excellent</span></td></tr>
+          <tr><td>NPS Tier-1 (additional 80CCD)</td><td>Till retirement</td><td>10-12% (market linked)</td><td><span class="badge badge-green">✓ Very Good</span></td></tr>
+          <tr><td>Life Insurance Premium</td><td>Policy term</td><td>Varies</td><td><span class="badge badge-blue">Consider</span></td></tr>
+          <tr><td>Tax Saver FD</td><td>5 Years</td><td>6-7%</td><td><span class="badge badge-gold">Moderate</span></td></tr>
+          <tr><td>NSC (National Savings Cert.)</td><td>5 Years</td><td>6.8%</td><td><span class="badge badge-gold">Moderate</span></td></tr>
+          <tr><td>Home Loan Principal</td><td>N/A</td><td>Asset appreciation</td><td><span class="badge badge-blue">If applicable</span></td></tr>
+        </tbody>
+      </table>
+      <div class="divider"></div>
+      <div class="card-header"><span class="card-title">Other Key Deductions</span></div>
+      <table>
+        <thead><tr><th>Section</th><th>Limit</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>80D</td><td>₹25,000 – ₹75,000</td><td>Health Insurance Premium</td></tr>
+          <tr><td>80E</td><td>No limit (interest only)</td><td>Education Loan Interest (8 years)</td></tr>
+          <tr><td>80CCD(1B)</td><td>₹50,000 additional</td><td>NPS additional contribution (over 80C)</td></tr>
+          <tr><td>80EEA</td><td>₹1,50,000</td><td>Affordable housing home loan interest</td></tr>
+          <tr><td>24(b)</td><td>₹2,00,000</td><td>Home Loan Interest (self-occupied)</td></tr>
+          <tr><td>80G</td><td>50-100% of donation</td><td>Charitable donations (approved)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PORTFOLIO ============ -->
+<div class="section" id="sec-portfolio">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'pf-tab')">My Holdings</div>
+    <div class="tab" onclick="switchTab(this,'pf-tab')">Add Holding</div>
+    <div class="tab" onclick="switchTab(this,'pf-tab')">Watchlist</div>
+  </div>
+  <div class="tab-content active" id="pf-tab-0">
+    <div class="grid-4" id="pf-summary-cards">
+      <div class="card"><div class="card-title">Current Value</div><div class="card-value" id="pf-val">₹0</div></div>
+      <div class="card"><div class="card-title">Invested</div><div class="card-value" id="pf-inv">₹0</div></div>
+      <div class="card"><div class="card-title">Total P&L</div><div class="card-value" id="pf-pnl">₹0</div></div>
+      <div class="card"><div class="card-title">P&L %</div><div class="card-value" id="pf-pnlp">0%</div></div>
+    </div>
+    <div class="card"><table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg Buy</th><th>CMP</th><th>Invested</th><th>Current</th><th>P&L</th><th>P&L%</th></tr></thead><tbody id="pf-table"><tr><td colspan="8" class="no-data">No holdings. Add stocks in "Add Holding" tab.</td></tr></tbody></table></div>
+  </div>
+  <div class="tab-content" id="pf-tab-1">
+    <div class="card" style="max-width:500px">
+      <div class="card-header"><span class="card-title">Add Stock to Portfolio</span></div>
+      <div class="form-group"><label class="form-label">Symbol</label><input class="form-input" id="pf-sym" placeholder="e.g. RELIANCE"></div>
+      <div class="form-group"><label class="form-label">Exchange</label><select class="form-input form-select" id="pf-ex"><option value="NSE">NSE</option><option value="BSE">BSE</option></select></div>
+      <div class="form-group"><label class="form-label">Quantity</label><input class="form-input" id="pf-qty" type="number" value="10"></div>
+      <div class="form-group"><label class="form-label">Avg. Buy Price (₹)</label><input class="form-input" id="pf-price" type="number" value="1000"></div>
+      <button class="btn btn-gold btn-full" onclick="addHolding()">Add to Portfolio</button>
+      <div id="pf-add-msg"></div>
+    </div>
+  </div>
+  <div class="tab-content" id="pf-tab-2">
+    <div class="grid-2">
+      <div class="card" style="max-width:400px">
+        <div class="card-header"><span class="card-title">Add to Watchlist</span></div>
+        <div class="form-group"><label class="form-label">Symbol</label><input class="form-input" id="wl-sym" placeholder="e.g. TCS"></div>
+        <div class="form-group"><label class="form-label">Exchange</label><select class="form-input form-select" id="wl-ex"><option value="NSE">NSE</option><option value="BSE">BSE</option></select></div>
+        <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="wl-notes" placeholder="Why watching..."></div>
+        <button class="btn btn-gold btn-full" onclick="addWatchlist()">Add to Watchlist</button>
+        <div id="wl-add-msg"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Watchlist</span></div>
+        <div id="wl-list"><div class="no-data">Watchlist is empty</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EXPENSES ============ -->
+<div class="section" id="sec-expenses">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Add Expense</span></div>
+      <div class="form-group"><label class="form-label">Amount (₹)</label><input class="form-input" id="exp-amt" type="number" placeholder="0.00"></div>
+      <div class="form-group"><label class="form-label">Category</label>
+        <select class="form-input form-select" id="exp-cat">
+          <option value="Food">Food</option><option value="Transport">Transport</option>
+          <option value="Utilities">Utilities</option><option value="Entertainment">Entertainment</option>
+          <option value="Healthcare">Healthcare</option><option value="Shopping">Shopping</option>
+          <option value="Education">Education</option><option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="exp-desc" placeholder="Description..."></div>
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" id="exp-date" type="date"></div>
+      <div class="form-group"><label class="form-label">Payment Method</label>
+        <select class="form-input form-select" id="exp-method">
+          <option>UPI</option><option>Cash</option><option>Debit Card</option><option>Credit Card</option><option>Net Banking</option>
+        </select>
+      </div>
+      <button class="btn btn-gold btn-full" onclick="addExpense()">Add Expense</button>
+      <div id="exp-msg"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Expense Breakdown</span></div>
+      <div class="chart-wrap"><canvas id="exp-chart"></canvas></div>
+      <div id="exp-summary" style="margin-top:12px"><div class="no-data">No expenses yet</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Recent Expenses</span></div>
+    <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Method</th><th>Amount</th></tr></thead>
+    <tbody id="exp-table"><tr><td colspan="5" class="no-data">No expenses added yet</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- ============ BUDGET ============ -->
+<div class="section" id="sec-budget">
+  <div id="budget-content"><div class="loading">Loading budget data...</div></div>
+</div>
+
+<!-- ============ DEBT ============ -->
+<div class="section" id="sec-debt">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'debt-tab')">EMI Calculator</div>
+    <div class="tab" onclick="switchTab(this,'debt-tab')">Prepayment Strategy</div>
+    <div class="tab" onclick="switchTab(this,'debt-tab')">Debt Analysis</div>
+  </div>
+  <div class="tab-content active" id="debt-tab-0">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">EMI Calculator</span></div>
+        <div class="form-group"><label class="form-label">Loan Type</label><select class="form-input form-select" id="emi-type"><option>Home Loan</option><option>Personal Loan</option><option>Car Loan</option><option>Education Loan</option><option>Business Loan</option></select></div>
+        <div class="form-group"><label class="form-label">Principal Amount (₹)</label><input class="form-input" id="emi-principal" type="number" value="1000000"></div>
+        <div class="form-group"><label class="form-label">Interest Rate (% per annum)</label><input class="form-input" id="emi-rate" type="number" value="8.5" step="0.1"></div>
+        <div class="form-group"><label class="form-label">Tenure (Months)</label><input class="form-input" id="emi-tenure" type="number" value="240"></div>
+        <button class="btn btn-gold btn-full" onclick="calcEMI()">Calculate EMI</button>
+        <div id="emi-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Loan Amortization</span></div>
+        <div class="chart-wrap-lg"><canvas id="emi-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-content" id="debt-tab-1">
+    <div class="card" style="max-width:500px">
+      <div class="card-header"><span class="card-title">Prepayment Impact</span></div>
+      <div class="form-group"><label class="form-label">Loan Principal (₹)</label><input class="form-input" id="pp-prin" type="number" value="2000000"></div>
+      <div class="form-group"><label class="form-label">Interest Rate (%)</label><input class="form-input" id="pp-rate" type="number" value="8.5" step="0.1"></div>
+      <div class="form-group"><label class="form-label">Tenure (Months)</label><input class="form-input" id="pp-tenure" type="number" value="240"></div>
+      <div class="form-group"><label class="form-label">Extra Monthly Payment (₹)</label><input class="form-input" id="pp-extra" type="number" value="5000"></div>
+      <button class="btn btn-gold btn-full" onclick="calcPrepayment()">Calculate Savings</button>
+      <div id="pp-result"></div>
+    </div>
+  </div>
+  <div class="tab-content" id="debt-tab-2">
+    <div id="debt-analysis-content"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ============ RETIREMENT ============ -->
+<div class="section" id="sec-retirement">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Retirement Corpus Calculator</span></div>
+      <div class="form-group"><label class="form-label">Current Age</label><input class="form-input" id="ret-age" type="number" value="30"></div>
+      <div class="form-group"><label class="form-label">Retirement Age</label><input class="form-input" id="ret-retage" type="number" value="60"></div>
+      <div class="form-group"><label class="form-label">Current Savings (₹)</label><input class="form-input" id="ret-savings" type="number" value="500000"></div>
+      <div class="form-group"><label class="form-label">Monthly Savings (₹)</label><input class="form-input" id="ret-monthly" type="number" value="20000"></div>
+      <div class="form-group"><label class="form-label">Expected Annual Return (%)</label><input class="form-input" id="ret-return" type="number" value="12"></div>
+      <div class="form-group"><label class="form-label">Annual Expense Needed at Retirement (₹)</label><input class="form-input" id="ret-expense" type="number" value="1200000"></div>
+      <button class="btn btn-gold btn-full" onclick="calcRetirement()">Plan My Retirement</button>
+      <div id="ret-result"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Retirement Strategies</span></div>
+      <div id="ret-strategies"><div class="loading">Loading strategies...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INSURANCE ============ -->
+<div class="section" id="sec-insurance">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Life Insurance Needs Analysis</span></div>
+      <div class="form-group"><label class="form-label">Your Age</label><input class="form-input" id="ins-age" type="number" value="32"></div>
+      <div class="form-group"><label class="form-label">Annual Income (₹)</label><input class="form-input" id="ins-income" type="number" value="1200000"></div>
+      <div class="form-group"><label class="form-label">Number of Dependents</label><input class="form-input" id="ins-dep" type="number" value="2"></div>
+      <div class="form-group"><label class="form-label">Existing Life Coverage (₹)</label><input class="form-input" id="ins-existing" type="number" value="2000000"></div>
+      <button class="btn btn-gold btn-full" onclick="calcInsurance()">Analyse Insurance Needs</button>
+      <div id="ins-result"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Insurance Products Comparison</span></div>
+      <div id="ins-comparison"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CHAT ============ -->
+<div class="section" id="sec-chat">
+  <div class="chat-wrap">
+    <div class="chat-messages" id="chat-msgs">
+      <div class="msg ai">
+        <div class="msg-label">Artha AI</div>
+        <div class="msg-bubble">Namaste! 🙏 I'm your AI Financial Advisor for Indian markets. I can help you with:<br><br>• <strong>Stock Analysis</strong> — NSE/BSE technical & fundamental analysis<br>• <strong>SIP Planning</strong> — Corpus calculations, goal planning<br>• <strong>Tax Optimization</strong> — LTCG, STCG, 80C strategies<br>• <strong>Mutual Funds</strong> — Fund selection, comparison<br>• <strong>Retirement Planning</strong> — NPS, PPF, corpus calculations<br>• <strong>Market Insights</strong> — Nifty 50, sector analysis<br><br>Ask me anything about your Indian financial journey!</div>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chat-inp" rows="2" placeholder="Ask about stocks, SIP, tax, mutual funds, retirement..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+      <button class="btn btn-gold" onclick="sendChat()">Send ↵</button>
+    </div>
+  </div>
+</div>
+
+  </article><!-- /content -->
+</main><!-- /main -->
+</div><!-- /app -->
+
+<script src="assets/js/script.js" defer></script>
+</body>
+</html>
