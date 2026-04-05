@@ -1,5 +1,5 @@
-// This is where your FastAPI server is running
-const API_BASE_URL = 'http://localhost:8000';
+// Proxy through Next.js rewrites so the browser never hits the backend directly
+const API_BASE_URL = '/backend';
 
 export async function api(path: string, method: string = 'GET', body: any = null) {
   const options: RequestInit = {
