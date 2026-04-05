@@ -19,8 +19,10 @@ Frontend proxies all `/backend/*` requests to the Python backend via Next.js rew
 
 ### Week 1-2 · Foundation
 - Indian stock quotes via `yfinance` (`.NS` for NSE, `.BO` for BSE)
-- `GET /api/v1/stocks/quote/{symbol}` — live price, P/E, 52-week range
-- `GET /api/v1/stocks/historical/{symbol}` — OHLCV history
+- **Demo data fallback** — 20+ pre-loaded stocks + indices serve instantly when yfinance network calls fail
+- **Circuit breaker** — after first yfinance failure, skips network for 10 min; subsequent calls return in ~100ms
+- `GET /api/v1/stocks/quote/{symbol}` — live price, P/E, 52-week range (includes `"demo": true/false`)
+- `GET /api/v1/stocks/historical/{symbol}` — OHLCV history (synthetic fallback using seeded randomness)
 - `GET /api/v1/stocks/market-status` — NSE/BSE open/closed with IST time
 - In-memory cache with TTL (avoids redundant API calls)
 

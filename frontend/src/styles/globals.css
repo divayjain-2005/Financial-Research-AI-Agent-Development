@@ -1,5 +1,159 @@
-/* 
- * Global styles - imports the single source of truth CSS file.
- * All styles are maintained in assets/css/styles.css to avoid duplication.
- */
-@import url("../../assets/css/styles.css");
+@import "tailwindcss";
+
+:root {
+  --bg-deep:    #080d12;
+  --bg-base:    #0d1117;
+  --bg-card:    #111827;
+  --bg-hover:   #161e2b;
+  --border:     #1e2d3d;
+  --border-lt:  #243447;
+  --gold:       #c9a84c;
+  --gold-dim:   #a88a38;
+  --green:      #22c55e;
+  --red:        #ef4444;
+  --blue:       #3b82f6;
+  --purple:     #8b5cf6;
+  --text-1:     #f1f5f9;
+  --text-2:     #94a3b8;
+  --text-3:     #64748b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-1);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 3px; }
+
+/* ── Cards ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.card-hover {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.card-hover:hover {
+  border-color: var(--border-lt);
+  background: var(--bg-hover);
+}
+
+/* ── Inputs ── */
+.input {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-1);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input:focus { border-color: var(--gold); }
+.input::placeholder { color: var(--text-3); }
+
+select.input option { background: var(--bg-card); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-gold  { background: var(--gold);    color: #000; }
+.btn-gold:hover:not(:disabled)  { background: var(--gold-dim); }
+.btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-1); }
+.btn-red   { background: #7f1d1d; color: #fca5a5; }
+.btn-red:hover:not(:disabled)   { background: #991b1b; }
+.btn-green { background: #14532d; color: #86efac; }
+
+/* ── Labels ── */
+.label { font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; display: block; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 600;
+}
+.badge-green { background: #14532d; color: #86efac; }
+.badge-red   { background: #7f1d1d; color: #fca5a5; }
+.badge-gold  { background: #78350f; color: #fcd34d; }
+.badge-blue  { background: #1e3a5f; color: #93c5fd; }
+.badge-gray  { background: #1e293b; color: #94a3b8; }
+
+/* ── Table ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.tbl th { text-align: left; padding: 10px 12px; color: var(--text-3); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: var(--bg-hover); }
+.tbl td.num { font-family: 'JetBrains Mono', monospace; text-align: right; }
+
+/* ── Metric boxes ── */
+.metric-val { font-size: 1.5rem; font-weight: 700; color: var(--text-1); line-height: 1.1; }
+.metric-label { font-size: 0.7rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ── Up / Down colours ── */
+.up   { color: var(--green); }
+.down { color: var(--red); }
+.neutral { color: var(--text-2); }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 8px 16px; font-size: 0.85rem; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.tab:hover { color: var(--text-1); }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ── Section headers ── */
+.section-title { font-size: 1rem; font-weight: 600; color: var(--text-1); margin-bottom: 14px; }
+.page-title    { font-size: 1.4rem; font-weight: 700; color: var(--text-1); }
+.page-sub      { font-size: 0.85rem; color: var(--text-3); margin-top: 2px; }
+
+/* ── Loading / empty states ── */
+.loading { display: flex; align-items: center; justify-content: center; padding: 3rem; color: var(--text-3); font-size: 0.9rem; }
+.empty   { text-align: center; padding: 3rem; color: var(--text-3); font-size: 0.9rem; }
+
+/* ── Spinner ── */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--gold); border-radius: 50%;
+  animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Progress bar ── */
+.progress-track { background: var(--bg-deep); border-radius: 99px; height: 6px; overflow: hidden; }
+.progress-fill  { height: 100%; border-radius: 99px; background: var(--gold); transition: width 0.6s; }
+
+/* ── Chat bubbles ── */
+.bubble-user { background: #1e3a5f; border-radius: 12px 12px 2px 12px; }
+.bubble-bot  { background: var(--bg-hover); border-radius: 12px 12px 12px 2px; }
+
+/* ── Recommendation pill ── */
+.rec-buy  { background:#14532d; color:#86efac; padding:3px 10px; border-radius:6px; font-size:0.75rem; font-weight:700; }
+.rec-sell { background:#7f1d1d; color:#fca5a5; padding:3px 10px; border-radius:6px; font-size:0.75rem; font-weight:700; }
+.rec-hold { background:#422006; color:#fcd34d; padding:3px 10px; border-radius:6px; font-size:0.75rem; font-weight:700; }
