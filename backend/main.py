@@ -95,51 +95,94 @@ def init_db():
 init_db()
 
 # ── yfinance helper (Week 1-2: Indian stock support) ──────────────────────────
-# Circuit-breaker: once yfinance fails, skip retries for 10 minutes
-_yf_circuit_open = False
-_yf_circuit_reset_time = 0.0
-YF_CIRCUIT_COOLDOWN = 600  # seconds
+import requests as _requests
+from datetime import timezone as _tz
+
+_YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json,text/html,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+}
+
+_PERIOD_TO_RANGE = {
+    "1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo",
+    "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y", "max": "max",
+}
 
 def _fetch_yf(symbol: str, period: str = "3mo", interval: str = "1d") -> Optional[Dict]:
-    global _yf_circuit_open, _yf_circuit_reset_time
-    cache_key = f"yf:{symbol}:{period}:{interval}"
+    cache_key = f"yf2:{symbol}:{period}:{interval}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-    # Skip network call if circuit is open
-    if _yf_circuit_open and time.time() < _yf_circuit_reset_time:
-        return None
     try:
-        import yfinance as yf
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=period, interval=interval)
-        info = {}
-        try:
-            info = ticker.info or {}
-        except Exception:
-            pass
-        if hist.empty:
-            _yf_circuit_open = True
-            _yf_circuit_reset_time = time.time() + YF_CIRCUIT_COOLDOWN
+        yf_range = _PERIOD_TO_RANGE.get(period, "3mo")
+        chart_url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            f"?interval={interval}&range={yf_range}&includePrePost=false"
+        )
+        r = _requests.get(chart_url, headers=_YF_HEADERS, timeout=10)
+        if r.status_code != 200 or not r.text.strip():
+            logger.error(f"Yahoo Finance chart HTTP {r.status_code} for {symbol}")
             return None
-        prices = [
-            {
-                "date": str(idx.date()),
-                "open": round(float(row["Open"]), 2),
-                "high": round(float(row["High"]), 2),
-                "low": round(float(row["Low"]), 2),
-                "close": round(float(row["Close"]), 2),
-                "volume": int(row["Volume"]),
-            }
-            for idx, row in hist.iterrows()
-        ]
+        data = r.json()
+        chart_result = data.get("chart", {}).get("result")
+        if not chart_result:
+            logger.error(f"No chart result for {symbol}: {data.get('chart',{}).get('error')}")
+            return None
+        cr = chart_result[0]
+        meta = cr.get("meta", {})
+        timestamps = cr.get("timestamp", [])
+        ohlcv = cr.get("indicators", {}).get("quote", [{}])[0]
+        opens = ohlcv.get("open", [])
+        highs = ohlcv.get("high", [])
+        lows = ohlcv.get("low", [])
+        closes = ohlcv.get("close", [])
+        volumes = ohlcv.get("volume", [])
+        prices = []
+        for i, ts in enumerate(timestamps):
+            c = closes[i] if i < len(closes) else None
+            if c is None:
+                continue
+            prices.append({
+                "date": datetime.fromtimestamp(ts, tz=_tz.utc).strftime("%Y-%m-%d"),
+                "open": round(float(opens[i] or c), 2),
+                "high": round(float(highs[i] or c), 2),
+                "low": round(float(lows[i] or c), 2),
+                "close": round(float(c), 2),
+                "volume": int(volumes[i] or 0) if i < len(volumes) else 0,
+            })
+        if not prices:
+            return None
+        info = {
+            "currentPrice": meta.get("regularMarketPrice"),
+            "previousClose": meta.get("previousClose") or meta.get("chartPreviousClose"),
+            "currency": meta.get("currency", "INR"),
+            "exchangeName": meta.get("fullExchangeName", ""),
+            "symbol": symbol,
+        }
+        # Fetch quote summary for richer fundamentals
+        try:
+            qs_url = (
+                f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+                f"?modules=summaryDetail,defaultKeyStatistics,financialData,quoteType,assetProfile"
+            )
+            qr = _requests.get(qs_url, headers=_YF_HEADERS, timeout=8)
+            if qr.status_code == 200 and qr.text.strip():
+                qdata = qr.json().get("quoteSummary", {}).get("result", [{}])[0] or {}
+                for section in ("summaryDetail", "defaultKeyStatistics", "financialData", "quoteType", "assetProfile"):
+                    for k, v in (qdata.get(section) or {}).items():
+                        if isinstance(v, dict) and "raw" in v:
+                            info[k] = v["raw"]
+                        elif not isinstance(v, dict):
+                            info[k] = v
+        except Exception as qe:
+            logger.warning(f"quoteSummary fetch failed for {symbol}: {qe}")
         result = {"symbol": symbol, "prices": prices, "info": info}
         cache_set(cache_key, result, ttl=300)
         return result
     except Exception as e:
-        logger.error(f"yfinance error for {symbol}: {e}")
-        _yf_circuit_open = True
-        _yf_circuit_reset_time = time.time() + YF_CIRCUIT_COOLDOWN
+        logger.error(f"_fetch_yf error for {symbol}: {e}")
         return None
 
 
