@@ -11,10 +11,15 @@ export default function Sectors() {
   const [sector, setSector] = useState("IT");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
 
   async function load(s: string) {
-    setSector(s); setData(null); setLoading(true);
-    try { setData(await api.sectorCompare(s)); } catch {}
+    setSector(s); setData(null); setUnavailable(false); setLoading(true);
+    try {
+      setData(await api.sectorCompare(s));
+    } catch {
+      setUnavailable(true);
+    }
     setLoading(false);
   }
 
@@ -22,7 +27,6 @@ export default function Sectors() {
 
   return (
     <Layout title="Sector Analysis">
-      {/* Sector tabs */}
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:20 }}>
         {SECTORS.map(s => (
           <button
@@ -43,16 +47,28 @@ export default function Sectors() {
 
       {loading && <div className="loading"><span className="spinner" style={{marginRight:10}}/>Loading {sector} sector data…</div>}
 
+      {unavailable && !loading && (
+        <div style={{
+          textAlign: "center", padding: "40px 20px",
+          color: "var(--text-3)", fontSize: "0.9rem",
+          border: "1px dashed var(--border)", borderRadius: 12,
+        }}>
+          Live market data is currently unavailable.
+          <br />
+          <a href="/chat" style={{ color: "var(--gold)", textDecoration: "none", marginTop: 8, display: "inline-block" }}>
+            Ask the AI Assistant about {sector} sector stocks →
+          </a>
+        </div>
+      )}
+
       {data && !loading && (
         <>
-          {/* Top performer banner */}
           {data.top_performer && (
             <div style={{ background:"#14532d22", border:"1px solid #14532d", borderRadius:10, padding:"12px 16px", marginBottom:16, color:"var(--green)", fontSize:"0.875rem" }}>
               🏆 Top Performer in {sector}: <strong>{data.top_performer?.split(".")[0]}</strong>
             </div>
           )}
 
-          {/* Return bar chart */}
           <div className="card" style={{ padding:20, marginBottom:14 }}>
             <div className="section-title">3-Month Returns — {sector} Sector</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:10 }}>
@@ -73,7 +89,6 @@ export default function Sectors() {
             </div>
           </div>
 
-          {/* Stocks table */}
           <div className="card" style={{ padding:20 }}>
             <div className="section-title">{sector} Stocks Detail ({data.stocks_analysed} stocks)</div>
             <table className="tbl">

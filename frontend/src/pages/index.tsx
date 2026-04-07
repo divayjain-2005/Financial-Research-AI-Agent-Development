@@ -2,20 +2,13 @@ import React, { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 import { api } from "@/utils/api";
 
-const DEMO_INDICES = [
-  { label: "NIFTY 50",   price: 22847.55, change: 123.45,  pct: 0.54 },
-  { label: "SENSEX",     price: 75418.04, change: 400.80,  pct: 0.53 },
-  { label: "NIFTY BANK", price: 49281.65, change: -50.20,  pct: -0.10 },
+const INDICES = [
+  { label: "NIFTY 50",   symbol: "^NSEI" },
+  { label: "SENSEX",     symbol: "^BSESN" },
+  { label: "NIFTY BANK", symbol: "^NSEBANK" },
 ];
 
-const DEMO_STOCKS = [
-  { symbol:"RELIANCE.NS", company_name:"Reliance Industries", current_price:2938.50, change:18.25,  change_percent:0.63,  volume:5842310, pe_ratio:27.4 },
-  { symbol:"TCS.NS",      company_name:"Tata Consultancy Services", current_price:4102.80, change:-12.30, change_percent:-0.30, volume:1234567, pe_ratio:31.2 },
-  { symbol:"INFY.NS",     company_name:"Infosys Ltd",    current_price:1756.40, change:8.90,   change_percent:0.51,  volume:2341234, pe_ratio:24.8 },
-  { symbol:"HDFCBANK.NS", company_name:"HDFC Bank Ltd",  current_price:1678.25, change:22.10,  change_percent:1.33,  volume:4521234, pe_ratio:18.6 },
-  { symbol:"ICICIBANK.NS",company_name:"ICICI Bank Ltd", current_price:1245.60, change:-5.40,  change_percent:-0.43, volume:3214567, pe_ratio:20.1 },
-  { symbol:"WIPRO.NS",    company_name:"Wipro Ltd",      current_price:543.80,  change:3.20,   change_percent:0.59,  volume:1876543, pe_ratio:22.3 },
-];
+const QUICK_STOCKS = ["RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","ICICIBANK.NS","WIPRO.NS"];
 
 function fmt(n: number | null | undefined) {
   if (n == null) return "—";
@@ -27,18 +20,44 @@ function pctColor(n: number | undefined) {
   return n >= 0 ? "var(--green)" : "var(--red)";
 }
 
+function DataUnavailable() {
+  return (
+    <div style={{
+      textAlign: "center", padding: "28px 20px",
+      color: "var(--text-3)", fontSize: "0.85rem",
+      border: "1px dashed var(--border)", borderRadius: 10,
+    }}>
+      Live market data is currently unavailable. Use the AI Assistant to ask about any stock.
+    </div>
+  );
+}
+
 export default function Dashboard() {
+  const [indices, setIndices] = useState<any[]>([]);
+  const [topStocks, setTopStocks] = useState<any[]>([]);
   const [marketStatus, setMarketStatus] = useState<any>(null);
   const [monitoring, setMonitoring] = useState<any>(null);
+  const [dataAvailable, setDataAvailable] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.marketStatus().then(setMarketStatus).catch(() => {});
     api.monitoring().then(setMonitoring).catch(() => {});
+
+    Promise.all(INDICES.map(i => api.quote(i.symbol).catch(() => null)))
+      .then(results => setIndices(results.map((r, i) => ({ label: INDICES[i].label, data: r }))));
+
+    Promise.all(QUICK_STOCKS.map(s => api.quote(s).catch(() => null)))
+      .then(results => {
+        const live = results.filter(Boolean);
+        setTopStocks(live);
+        setDataAvailable(live.length > 0);
+        setLoading(false);
+      });
   }, []);
 
   return (
     <Layout title="Market Dashboard">
-      {/* Market status banner */}
       {marketStatus && (
         <div style={{
           background: marketStatus.market_open ? "#14532d22" : "#7f1d1d22",
@@ -58,18 +77,25 @@ export default function Dashboard() {
 
       {/* Index cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 22 }}>
-        {DEMO_INDICES.map((idx) => (
-          <div key={idx.label} className="card" style={{ padding: "18px 20px" }}>
-            <div className="metric-label">{idx.label}</div>
-            <div className="metric-val" style={{ marginTop: 6 }}>{fmt(idx.price)}</div>
-            <div style={{ fontSize: "0.82rem", marginTop: 4, color: pctColor(idx.pct) }}>
-              {idx.change >= 0 ? "▲" : "▼"} {fmt(Math.abs(idx.change))} ({idx.pct > 0 ? "+" : ""}{idx.pct.toFixed(2)}%)
+        {INDICES.map((idx) => {
+          const d = indices.find(i => i.label === idx.label)?.data;
+          return (
+            <div key={idx.label} className="card" style={{ padding: "18px 20px" }}>
+              <div className="metric-label">{idx.label}</div>
+              <div className="metric-val" style={{ marginTop: 6 }}>
+                {loading ? <span className="spinner" /> : d ? fmt(d.current_price) : "—"}
+              </div>
+              {d && (
+                <div style={{ fontSize: "0.82rem", marginTop: 4, color: pctColor(d.change_percent) }}>
+                  {d.change >= 0 ? "▲" : "▼"} {fmt(Math.abs(d.change))} ({d.change_percent > 0 ? "+" : ""}{d.change_percent?.toFixed(2)}%)
+                </div>
+              )}
+              {!loading && !d && <div style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: 4 }}>Unavailable</div>}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Stats from monitoring */}
       {monitoring && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 22 }}>
           {[
@@ -86,49 +112,50 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Top stocks table */}
-      <div className="card" style={{ padding: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div className="section-title" style={{ marginBottom: 0 }}>Top Indian Stocks</div>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-3)", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 8px" }}>Demo Data</span>
-        </div>
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Company</th>
-              <th style={{ textAlign: "right" }}>Price (₹)</th>
-              <th style={{ textAlign: "right" }}>Change</th>
-              <th style={{ textAlign: "right" }}>Change %</th>
-              <th style={{ textAlign: "right" }}>Volume</th>
-              <th style={{ textAlign: "right" }}>P/E</th>
-            </tr>
-          </thead>
-          <tbody>
-            {DEMO_STOCKS.map((s) => (
-              <tr key={s.symbol}>
-                <td><span style={{ color: "var(--gold)", fontWeight: 600 }}>{s.symbol.split(".")[0]}</span></td>
-                <td style={{ color: "var(--text-2)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.company_name}</td>
-                <td className="num" style={{ color: "var(--text-1)", fontWeight: 600 }}>₹{fmt(s.current_price)}</td>
-                <td className="num" style={{ color: pctColor(s.change) }}>{s.change >= 0 ? "+" : ""}{fmt(s.change)}</td>
-                <td className="num" style={{ color: pctColor(s.change_percent) }}>{s.change_percent >= 0 ? "+" : ""}{s.change_percent.toFixed(2)}%</td>
-                <td className="num">{s.volume.toLocaleString("en-IN")}</td>
-                <td className="num">{s.pe_ratio.toFixed(1)}</td>
+      {/* Top stocks */}
+      <div className="card" style={{ padding: "20px", marginBottom: 22 }}>
+        <div className="section-title">Top Indian Stocks</div>
+        {loading && <div className="loading"><span className="spinner" style={{ marginRight: 10 }} />Loading live data…</div>}
+        {!loading && dataAvailable === false && <DataUnavailable />}
+        {!loading && topStocks.length > 0 && (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Company</th>
+                <th style={{ textAlign: "right" }}>Price (₹)</th>
+                <th style={{ textAlign: "right" }}>Change</th>
+                <th style={{ textAlign: "right" }}>Change %</th>
+                <th style={{ textAlign: "right" }}>Volume</th>
+                <th style={{ textAlign: "right" }}>P/E</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {topStocks.map((s: any) => (
+                <tr key={s.symbol}>
+                  <td><span style={{ color: "var(--gold)", fontWeight: 600 }}>{s.symbol?.split(".")[0]}</span></td>
+                  <td style={{ color: "var(--text-2)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.company_name}</td>
+                  <td className="num" style={{ color: "var(--text-1)", fontWeight: 600 }}>₹{fmt(s.current_price)}</td>
+                  <td className="num" style={{ color: pctColor(s.change) }}>{s.change >= 0 ? "+" : ""}{fmt(s.change)}</td>
+                  <td className="num" style={{ color: pctColor(s.change_percent) }}>{s.change_percent >= 0 ? "+" : ""}{s.change_percent?.toFixed(2)}%</td>
+                  <td className="num">{s.volume?.toLocaleString("en-IN")}</td>
+                  <td className="num">{s.pe_ratio ? s.pe_ratio.toFixed(1) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Features overview */}
-      <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
         {[
-          { label: "Stock Analysis",   desc: "Technical + fundamental deep dive on any NSE/BSE stock",  href: "/stocks",      icon: "📈" },
-          { label: "Portfolio Tracker",desc: "Track holdings, cost basis, live P&L",                    href: "/portfolio",    icon: "💼" },
-          { label: "SIP & Tax Calc",   desc: "SIP projections with step-up, LTCG/STCG tax estimates",  href: "/calculators",  icon: "🧮" },
-          { label: "Sector Compare",   desc: "IT, Banking, Energy, FMCG, Pharma, Auto",                href: "/sectors",      icon: "🏭" },
-          { label: "Financial Wellness",desc: "Score your personal finance health",                     href: "/wellness",     icon: "💯" },
-          { label: "AI Assistant",     desc: "Ask Artha any market or planning question",              href: "/chat",         icon: "🤖" },
+          { label: "Stock Analysis",    desc: "Technical + fundamental deep dive on any NSE/BSE stock", href: "/stocks",      icon: "📈" },
+          { label: "Portfolio Tracker", desc: "Track holdings, cost basis, live P&L",                   href: "/portfolio",   icon: "💼" },
+          { label: "SIP & Tax Calc",    desc: "SIP projections with step-up, LTCG/STCG tax estimates", href: "/calculators", icon: "🧮" },
+          { label: "Sector Compare",    desc: "IT, Banking, Energy, FMCG, Pharma, Auto",               href: "/sectors",     icon: "🏭" },
+          { label: "Financial Wellness",desc: "Score your personal finance health",                     href: "/wellness",    icon: "💯" },
+          { label: "AI Assistant",      desc: "Ask Artha any market or planning question",             href: "/chat",        icon: "🤖" },
         ].map(item => (
           <a key={item.label} href={item.href} style={{ textDecoration: "none" }}>
             <div className="card-hover" style={{ padding: "16px 18px", cursor: "pointer" }}>

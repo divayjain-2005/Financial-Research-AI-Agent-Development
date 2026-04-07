@@ -153,76 +153,6 @@ def _validate_symbol(symbol: str) -> str:
     return symbol
 
 
-# ── Demo / fallback data (used when yfinance network calls fail) ───────────────
-_DEMO_QUOTES: Dict[str, Dict] = {
-    # Indices
-    "^NSEI":    {"company_name":"NIFTY 50",                "current_price":22847.55,"open":22700.0,"high":22910.0,"low":22650.0,"previous_close":22724.10,"change":123.45,"change_percent":0.54,"volume":300000000,"market_cap":None,"pe_ratio":None,"fifty_two_week_high":24198.85,"fifty_two_week_low":19270.25,"currency":"INR","exchange":"NSE"},
-    "^BSESN":   {"company_name":"BSE SENSEX",              "current_price":75418.04,"open":75020.0,"high":75620.0,"low":74880.0,"previous_close":75017.24,"change":400.80,"change_percent":0.53,"volume":None,"market_cap":None,"pe_ratio":None,"fifty_two_week_high":79671.58,"fifty_two_week_low":63117.15,"currency":"INR","exchange":"BSE"},
-    "^NSEBANK": {"company_name":"NIFTY BANK",              "current_price":49281.65,"open":49350.0,"high":49510.0,"low":49100.0,"previous_close":49331.85,"change":-50.20,"change_percent":-0.10,"volume":None,"market_cap":None,"pe_ratio":None,"fifty_two_week_high":53357.70,"fifty_two_week_low":42213.55,"currency":"INR","exchange":"NSE"},
-    # Top NSE stocks
-    "RELIANCE.NS":   {"company_name":"Reliance Industries Ltd",        "current_price":2938.50,"open":2920.0,"high":2965.0,"low":2905.0,"previous_close":2920.25,"change":18.25,"change_percent":0.63,"volume":5842310,"market_cap":19868000000000,"pe_ratio":27.4,"fifty_two_week_high":3217.90,"fifty_two_week_low":2220.15,"currency":"INR","exchange":"NSE"},
-    "TCS.NS":        {"company_name":"Tata Consultancy Services Ltd",  "current_price":4102.80,"open":4115.0,"high":4140.0,"low":4090.0,"previous_close":4115.10,"change":-12.30,"change_percent":-0.30,"volume":1234567,"market_cap":14898000000000,"pe_ratio":31.2,"fifty_two_week_high":4592.25,"fifty_two_week_low":3311.80,"currency":"INR","exchange":"NSE"},
-    "INFY.NS":       {"company_name":"Infosys Ltd",                    "current_price":1756.40,"open":1748.0,"high":1770.0,"low":1742.0,"previous_close":1747.50,"change":8.90,"change_percent":0.51,"volume":2341234,"market_cap":7298000000000,"pe_ratio":24.8,"fifty_two_week_high":1987.00,"fifty_two_week_low":1355.40,"currency":"INR","exchange":"NSE"},
-    "HDFCBANK.NS":   {"company_name":"HDFC Bank Ltd",                  "current_price":1678.25,"open":1658.0,"high":1692.0,"low":1652.0,"previous_close":1656.15,"change":22.10,"change_percent":1.33,"volume":4521234,"market_cap":12781000000000,"pe_ratio":18.6,"fifty_two_week_high":1880.00,"fifty_two_week_low":1363.55,"currency":"INR","exchange":"NSE"},
-    "ICICIBANK.NS":  {"company_name":"ICICI Bank Ltd",                 "current_price":1245.60,"open":1238.0,"high":1256.0,"low":1230.0,"previous_close":1251.00,"change":-5.40,"change_percent":-0.43,"volume":3214567,"market_cap":8763000000000,"pe_ratio":20.1,"fifty_two_week_high":1388.80,"fifty_two_week_low":970.00,"currency":"INR","exchange":"NSE"},
-    "WIPRO.NS":      {"company_name":"Wipro Ltd",                      "current_price":543.80,"open":540.0,"high":549.0,"low":537.0,"previous_close":540.60,"change":3.20,"change_percent":0.59,"volume":1876543,"market_cap":2853000000000,"pe_ratio":22.3,"fifty_two_week_high":627.00,"fifty_two_week_low":420.00,"currency":"INR","exchange":"NSE"},
-    "SBIN.NS":       {"company_name":"State Bank of India",            "current_price":756.40,"open":750.0,"high":762.0,"low":748.0,"previous_close":750.85,"change":5.55,"change_percent":0.74,"volume":9876543,"market_cap":6748000000000,"pe_ratio":10.2,"fifty_two_week_high":912.00,"fifty_two_week_low":600.65,"currency":"INR","exchange":"NSE"},
-    "MARUTI.NS":     {"company_name":"Maruti Suzuki India Ltd",        "current_price":12450.60,"open":12400.0,"high":12520.0,"low":12380.0,"previous_close":12402.80,"change":47.80,"change_percent":0.39,"volume":456789,"market_cap":3767000000000,"pe_ratio":29.8,"fifty_two_week_high":13680.00,"fifty_two_week_low":9650.00,"currency":"INR","exchange":"NSE"},
-    "SUNPHARMA.NS":  {"company_name":"Sun Pharmaceutical Industries",  "current_price":1687.30,"open":1675.0,"high":1698.0,"low":1668.0,"previous_close":1672.45,"change":14.85,"change_percent":0.89,"volume":1234432,"market_cap":4045000000000,"pe_ratio":36.4,"fifty_two_week_high":1936.15,"fifty_two_week_low":1195.00,"currency":"INR","exchange":"NSE"},
-    "TATAMOTORS.NS": {"company_name":"Tata Motors Ltd",                "current_price":872.45,"open":866.0,"high":882.0,"low":860.0,"previous_close":868.90,"change":3.55,"change_percent":0.41,"volume":5432109,"market_cap":3213000000000,"pe_ratio":8.6,"fifty_two_week_high":1179.00,"fifty_two_week_low":700.00,"currency":"INR","exchange":"NSE"},
-    "HCLTECH.NS":    {"company_name":"HCL Technologies Ltd",           "current_price":1568.20,"open":1558.0,"high":1580.0,"low":1550.0,"previous_close":1555.40,"change":12.80,"change_percent":0.82,"volume":1876540,"market_cap":4247000000000,"pe_ratio":27.6,"fifty_two_week_high":1960.00,"fifty_two_week_low":1235.00,"currency":"INR","exchange":"NSE"},
-    "BAJFINANCE.NS": {"company_name":"Bajaj Finance Ltd",              "current_price":7234.50,"open":7180.0,"high":7280.0,"low":7165.0,"previous_close":7198.60,"change":35.90,"change_percent":0.50,"volume":876543,"market_cap":4363000000000,"pe_ratio":28.4,"fifty_two_week_high":8192.00,"fifty_two_week_low":6187.00,"currency":"INR","exchange":"NSE"},
-    "ITC.NS":        {"company_name":"ITC Ltd",                        "current_price":448.70,"open":445.0,"high":453.0,"low":444.0,"previous_close":446.30,"change":2.40,"change_percent":0.54,"volume":8765432,"market_cap":5604000000000,"pe_ratio":27.1,"fifty_two_week_high":528.45,"fifty_two_week_low":399.35,"currency":"INR","exchange":"NSE"},
-    "AXISBANK.NS":   {"company_name":"Axis Bank Ltd",                  "current_price":1142.80,"open":1136.0,"high":1155.0,"low":1130.0,"previous_close":1138.55,"change":4.25,"change_percent":0.37,"volume":2345678,"market_cap":3516000000000,"pe_ratio":15.8,"fifty_two_week_high":1339.65,"fifty_two_week_low":970.00,"currency":"INR","exchange":"NSE"},
-    "KOTAKBANK.NS":  {"company_name":"Kotak Mahindra Bank Ltd",        "current_price":1876.40,"open":1868.0,"high":1890.0,"low":1860.0,"previous_close":1870.25,"change":6.15,"change_percent":0.33,"volume":1234321,"market_cap":3731000000000,"pe_ratio":23.4,"fifty_two_week_high":2062.00,"fifty_two_week_low":1543.85,"currency":"INR","exchange":"NSE"},
-    "NTPC.NS":       {"company_name":"NTPC Ltd",                       "current_price":342.80,"open":340.0,"high":347.0,"low":338.0,"previous_close":340.45,"change":2.35,"change_percent":0.69,"volume":6543210,"market_cap":3318000000000,"pe_ratio":17.2,"fifty_two_week_high":448.45,"fifty_two_week_low":271.75,"currency":"INR","exchange":"NSE"},
-    "ONGC.NS":       {"company_name":"Oil & Natural Gas Corporation",  "current_price":268.40,"open":265.0,"high":271.0,"low":264.0,"previous_close":266.85,"change":1.55,"change_percent":0.58,"volume":7654321,"market_cap":3372000000000,"pe_ratio":7.8,"fifty_two_week_high":345.00,"fifty_two_week_low":215.85,"currency":"INR","exchange":"NSE"},
-    "DRREDDY.NS":    {"company_name":"Dr Reddy's Laboratories Ltd",    "current_price":6234.80,"open":6200.0,"high":6270.0,"low":6185.0,"previous_close":6215.40,"change":19.40,"change_percent":0.31,"volume":345678,"market_cap":1037000000000,"pe_ratio":19.7,"fifty_two_week_high":7453.00,"fifty_two_week_low":5100.00,"currency":"INR","exchange":"NSE"},
-    "CIPLA.NS":      {"company_name":"Cipla Ltd",                      "current_price":1478.50,"open":1470.0,"high":1490.0,"low":1462.0,"previous_close":1471.80,"change":6.70,"change_percent":0.46,"volume":987654,"market_cap":1191000000000,"pe_ratio":22.3,"fifty_two_week_high":1702.00,"fifty_two_week_low":1165.00,"currency":"INR","exchange":"NSE"},
-    # Also support .BO suffix (same data)
-    "RELIANCE.BO":   {"company_name":"Reliance Industries Ltd",        "current_price":2937.20,"open":2919.0,"high":2963.0,"low":2904.0,"previous_close":2919.00,"change":18.20,"change_percent":0.62,"volume":1234567,"market_cap":19868000000000,"pe_ratio":27.4,"fifty_two_week_high":3217.90,"fifty_two_week_low":2220.15,"currency":"INR","exchange":"BSE"},
-    "TCS.BO":        {"company_name":"Tata Consultancy Services Ltd",  "current_price":4101.50,"open":4114.0,"high":4139.0,"low":4089.0,"previous_close":4113.90,"change":-12.40,"change_percent":-0.30,"volume":234567,"market_cap":14898000000000,"pe_ratio":31.2,"fifty_two_week_high":4592.25,"fifty_two_week_low":3311.80,"currency":"INR","exchange":"BSE"},
-}
-
-def _demo_history(symbol: str, period: str = "3mo") -> List[Dict]:
-    """Generate synthetic price history from demo quote data."""
-    import math, random
-    q = _DEMO_QUOTES.get(symbol)
-    if not q:
-        return []
-    base = q["current_price"]
-    period_days = {"1mo": 22, "3mo": 66, "6mo": 132, "1y": 252, "2y": 504, "5y": 1260, "5d": 5}
-    days = period_days.get(period, 66)
-    random.seed(hash(symbol) % 100000)
-    prices = []
-    price = base * (1 - (days / 252) * 0.12)
-    end = datetime.now()
-    trading_dates = []
-    d = end - timedelta(days=int(days * 1.5))
-    while len(trading_dates) < days and d <= end:
-        if d.weekday() < 5:
-            trading_dates.append(d)
-        d += timedelta(days=1)
-    for dt in trading_dates[-days:]:
-        daily_return = random.gauss(0.0003, 0.015)
-        price = max(price * (1 + daily_return), 1)
-        high = price * (1 + abs(random.gauss(0, 0.008)))
-        low  = price * (1 - abs(random.gauss(0, 0.008)))
-        open_ = price * (1 + random.gauss(0, 0.005))
-        vol = int((q.get("volume") or 1000000) * random.uniform(0.5, 1.5))
-        prices.append({
-            "date": dt.strftime("%Y-%m-%d"),
-            "open": round(open_, 2),
-            "high": round(high, 2),
-            "low": round(low, 2),
-            "close": round(price, 2),
-            "volume": vol,
-        })
-    # Ensure last close matches demo current_price
-    if prices:
-        prices[-1]["close"] = base
-    return prices
-
 
 # ── Technical-analysis helpers (Week 3-4) ─────────────────────────────────────
 def _sma(prices: List[float], period: int) -> Optional[float]:
@@ -469,41 +399,35 @@ async def get_stock_quote(symbol: str):
     """
     Get current stock quote for any symbol.
     Use .NS suffix for NSE (e.g. RELIANCE.NS) and .BO for BSE (e.g. RELIANCE.BO).
-    Falls back to demo data when live market data is unavailable.
     """
     symbol = _validate_symbol(symbol)
     data = _fetch_yf(symbol, period="5d", interval="1d")
-    if data and data["prices"]:
-        latest = data["prices"][-1]
-        prev = data["prices"][-2] if len(data["prices"]) > 1 else latest
-        change = round(latest["close"] - prev["close"], 2)
-        change_pct = round(change / prev["close"] * 100, 2) if prev["close"] else 0
-        info = data.get("info", {})
-        return {
-            "symbol": symbol,
-            "company_name": info.get("longName") or info.get("shortName") or symbol.split(".")[0],
-            "current_price": latest["close"],
-            "open": latest["open"],
-            "high": latest["high"],
-            "low": latest["low"],
-            "previous_close": prev["close"],
-            "change": change,
-            "change_percent": change_pct,
-            "volume": latest["volume"],
-            "market_cap": info.get("marketCap"),
-            "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
-            "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-            "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
-            "currency": info.get("currency", "INR"),
-            "exchange": info.get("exchange", "NSE"),
-            "timestamp": datetime.utcnow().isoformat(),
-            "demo": False,
-        }
-    # Fallback to demo data when yfinance unavailable
-    demo = _DEMO_QUOTES.get(symbol)
-    if demo:
-        return {**demo, "symbol": symbol, "timestamp": datetime.utcnow().isoformat(), "demo": True}
-    raise HTTPException(status_code=404, detail=f"No data found for {symbol}")
+    if not data or not data["prices"]:
+        raise HTTPException(status_code=503, detail="Live market data is currently unavailable. Please try again later.")
+    latest = data["prices"][-1]
+    prev = data["prices"][-2] if len(data["prices"]) > 1 else latest
+    change = round(latest["close"] - prev["close"], 2)
+    change_pct = round(change / prev["close"] * 100, 2) if prev["close"] else 0
+    info = data.get("info", {})
+    return {
+        "symbol": symbol,
+        "company_name": info.get("longName") or info.get("shortName") or symbol.split(".")[0],
+        "current_price": latest["close"],
+        "open": latest["open"],
+        "high": latest["high"],
+        "low": latest["low"],
+        "previous_close": prev["close"],
+        "change": change,
+        "change_percent": change_pct,
+        "volume": latest["volume"],
+        "market_cap": info.get("marketCap"),
+        "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
+        "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+        "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+        "currency": info.get("currency", "INR"),
+        "exchange": info.get("exchange", "NSE"),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 
 @app.get("/api/v1/stocks/historical/{symbol}")
@@ -512,30 +436,18 @@ async def get_historical_data(
     period: str = Query("3mo", description="1mo | 3mo | 6mo | 1y | 2y | 5y"),
     interval: str = Query("1d", description="1d | 1wk | 1mo"),
 ):
-    """Historical OHLCV data for a stock. Falls back to synthetic demo data when live data unavailable."""
+    """Historical OHLCV data for a stock."""
     symbol = _validate_symbol(symbol)
     data = _fetch_yf(symbol, period=period, interval=interval)
-    if data and data["prices"]:
-        return {
-            "symbol": symbol,
-            "period": period,
-            "interval": interval,
-            "count": len(data["prices"]),
-            "data": data["prices"],
-            "demo": False,
-        }
-    # Fallback: synthetic history
-    demo_prices = _demo_history(symbol, period)
-    if demo_prices:
-        return {
-            "symbol": symbol,
-            "period": period,
-            "interval": interval,
-            "count": len(demo_prices),
-            "data": demo_prices,
-            "demo": True,
-        }
-    raise HTTPException(status_code=404, detail=f"No data for {symbol}")
+    if not data or not data["prices"]:
+        raise HTTPException(status_code=503, detail="Live market data is currently unavailable. Please try again later.")
+    return {
+        "symbol": symbol,
+        "period": period,
+        "interval": interval,
+        "count": len(data["prices"]),
+        "data": data["prices"],
+    }
 
 
 @app.get("/api/v1/stocks/market-status")
@@ -553,60 +465,30 @@ async def analyze_stock(symbol: str):
     """
     Comprehensive stock analysis: technicals (SMA, EMA, RSI, MACD, Bollinger)
     + fundamental snapshot + buy/sell recommendation.
-    Falls back to demo data when live data is unavailable.
     """
     symbol = _validate_symbol(symbol)
     data = _fetch_yf(symbol, period="1y", interval="1d")
-    if data and data["prices"]:
-        closes = [p["close"] for p in data["prices"]]
-        current = closes[-1]
-        info = data.get("info", {})
-        technicals = _technicals_summary(closes, current)
-        return {
-            "symbol": symbol,
-            "company_name": info.get("longName") or symbol.split(".")[0],
-            "current_price": current,
-            "sector": info.get("sector", "N/A"),
-            "industry": info.get("industry", "N/A"),
-            "pe_ratio": info.get("trailingPE"),
-            "pb_ratio": info.get("priceToBook"),
-            "dividend_yield": info.get("dividendYield"),
-            "market_cap": info.get("marketCap"),
-            "debt_to_equity": info.get("debtToEquity"),
-            "roe": info.get("returnOnEquity"),
-            "revenue_growth": info.get("revenueGrowth"),
-            "technicals": technicals,
-            "analysis_date": datetime.utcnow().isoformat(),
-            "demo": False,
-            "disclaimer": "This is not financial advice. Consult a SEBI-registered advisor.",
-        }
-    # Fallback: use synthetic history to compute real technicals
-    demo_prices = _demo_history(symbol, "1y")
-    demo_quote = _DEMO_QUOTES.get(symbol)
-    if not demo_prices and not demo_quote:
-        raise HTTPException(status_code=404, detail=f"No data for {symbol}")
-    closes = [p["close"] for p in demo_prices] if demo_prices else []
-    current = (demo_quote or {}).get("current_price", closes[-1] if closes else 0)
-    if len(closes) < 2:
-        closes = [current * 0.98, current]
+    if not data or not data["prices"]:
+        raise HTTPException(status_code=503, detail="Live market data is currently unavailable. Please try again later.")
+    closes = [p["close"] for p in data["prices"]]
+    current = closes[-1]
+    info = data.get("info", {})
     technicals = _technicals_summary(closes, current)
-    company_name = (demo_quote or {}).get("company_name", symbol.split(".")[0])
     return {
         "symbol": symbol,
-        "company_name": company_name,
+        "company_name": info.get("longName") or symbol.split(".")[0],
         "current_price": current,
-        "sector": "N/A",
-        "industry": "N/A",
-        "pe_ratio": (demo_quote or {}).get("pe_ratio"),
-        "pb_ratio": None,
-        "dividend_yield": None,
-        "market_cap": (demo_quote or {}).get("market_cap"),
-        "debt_to_equity": None,
-        "roe": None,
-        "revenue_growth": None,
+        "sector": info.get("sector", "N/A"),
+        "industry": info.get("industry", "N/A"),
+        "pe_ratio": info.get("trailingPE"),
+        "pb_ratio": info.get("priceToBook"),
+        "dividend_yield": info.get("dividendYield"),
+        "market_cap": info.get("marketCap"),
+        "debt_to_equity": info.get("debtToEquity"),
+        "roe": info.get("returnOnEquity"),
+        "revenue_growth": info.get("revenueGrowth"),
         "technicals": technicals,
         "analysis_date": datetime.utcnow().isoformat(),
-        "demo": True,
         "disclaimer": "This is not financial advice. Consult a SEBI-registered advisor.",
     }
 
@@ -639,53 +521,28 @@ async def compare_stocks(
     results = []
     for sym in symbol_list:
         data = _fetch_yf(sym, period="1y", interval="1d")
-        if data and data["prices"]:
-            closes = [p["close"] for p in data["prices"]]
-            current = closes[-1]
-            week_ago = closes[-5] if len(closes) >= 5 else closes[0]
-            month_ago = closes[-21] if len(closes) >= 21 else closes[0]
-            year_ago = closes[0]
-            info = data["info"]
-            results.append({
-                "symbol": sym,
-                "company": info.get("longName") or sym.split(".")[0],
-                "price": current,
-                "change_1w_pct": round((current - week_ago) / week_ago * 100, 2),
-                "change_1m_pct": round((current - month_ago) / month_ago * 100, 2),
-                "change_1y_pct": round((current - year_ago) / year_ago * 100, 2),
-                "pe_ratio": info.get("trailingPE"),
-                "market_cap": info.get("marketCap"),
-                "sector": info.get("sector"),
-                "rsi": _rsi(closes),
-                "recommendation": _technicals_summary(closes, current)["recommendation"],
-                "demo": False,
-            })
-        else:
-            # Fallback to demo data
-            demo_q = _DEMO_QUOTES.get(sym)
-            demo_prices = _demo_history(sym, "1y")
-            if demo_q:
-                closes = [p["close"] for p in demo_prices] if demo_prices else [demo_q["current_price"]]
-                current = demo_q["current_price"]
-                week_ago = closes[-5] if len(closes) >= 5 else closes[0]
-                month_ago = closes[-21] if len(closes) >= 21 else closes[0]
-                year_ago = closes[0]
-                results.append({
-                    "symbol": sym,
-                    "company": demo_q.get("company_name", sym.split(".")[0]),
-                    "price": current,
-                    "change_1w_pct": round((current - week_ago) / week_ago * 100, 2) if week_ago else 0,
-                    "change_1m_pct": round((current - month_ago) / month_ago * 100, 2) if month_ago else 0,
-                    "change_1y_pct": round((current - year_ago) / year_ago * 100, 2) if year_ago else 0,
-                    "pe_ratio": demo_q.get("pe_ratio"),
-                    "market_cap": demo_q.get("market_cap"),
-                    "sector": None,
-                    "rsi": _rsi(closes) if len(closes) > 14 else None,
-                    "recommendation": _technicals_summary(closes, current)["recommendation"] if len(closes) > 1 else "HOLD",
-                    "demo": True,
-                })
-            else:
-                results.append({"symbol": sym, "error": "No data found"})
+        if not data or not data["prices"]:
+            results.append({"symbol": sym, "error": "Live market data unavailable"})
+            continue
+        closes = [p["close"] for p in data["prices"]]
+        current = closes[-1]
+        week_ago = closes[-5] if len(closes) >= 5 else closes[0]
+        month_ago = closes[-21] if len(closes) >= 21 else closes[0]
+        year_ago = closes[0]
+        info = data["info"]
+        results.append({
+            "symbol": sym,
+            "company": info.get("longName") or sym.split(".")[0],
+            "price": current,
+            "change_1w_pct": round((current - week_ago) / week_ago * 100, 2),
+            "change_1m_pct": round((current - month_ago) / month_ago * 100, 2),
+            "change_1y_pct": round((current - year_ago) / year_ago * 100, 2),
+            "pe_ratio": info.get("trailingPE"),
+            "market_cap": info.get("marketCap"),
+            "sector": info.get("sector"),
+            "rsi": _rsi(closes),
+            "recommendation": _technicals_summary(closes, current)["recommendation"],
+        })
     return {"symbols": symbol_list, "comparison": results, "timestamp": datetime.utcnow().isoformat()}
 
 
@@ -705,49 +562,31 @@ async def sector_compare(sector: str = Query("IT", description="IT | Banking | E
             detail=f"Unknown sector. Available: {list(SECTOR_STOCKS.keys())}",
         )
     results = []
-    used_demo = False
     for sym in stocks:
         data = _fetch_yf(sym, period="3mo", interval="1d")
-        if data and data["prices"]:
-            closes = [p["close"] for p in data["prices"]]
-            current = closes[-1]
-            start = closes[0]
-            info = data["info"]
-            results.append({
-                "symbol": sym,
-                "company": info.get("longName") or sym.split(".")[0],
-                "price": current,
-                "return_3m_pct": round((current - start) / start * 100, 2),
-                "pe_ratio": info.get("trailingPE"),
-                "market_cap": info.get("marketCap"),
-                "recommendation": _technicals_summary(closes, current)["recommendation"],
-            })
-        else:
-            # Fallback to demo data for this stock
-            demo_q = _DEMO_QUOTES.get(sym)
-            demo_prices = _demo_history(sym, "3mo")
-            if demo_q:
-                used_demo = True
-                closes = [p["close"] for p in demo_prices] if demo_prices else [demo_q["current_price"]]
-                start = closes[0] if closes else demo_q["current_price"]
-                current = demo_q["current_price"]
-                ret = round((current - start) / start * 100, 2) if start else 0
-                results.append({
-                    "symbol": sym,
-                    "company": demo_q.get("company_name", sym.split(".")[0]),
-                    "price": current,
-                    "return_3m_pct": ret,
-                    "pe_ratio": demo_q.get("pe_ratio"),
-                    "market_cap": demo_q.get("market_cap"),
-                    "recommendation": _technicals_summary(closes, current)["recommendation"] if len(closes) > 1 else "HOLD",
-                })
+        if not data or not data["prices"]:
+            continue
+        closes = [p["close"] for p in data["prices"]]
+        current = closes[-1]
+        start = closes[0]
+        info = data["info"]
+        results.append({
+            "symbol": sym,
+            "company": info.get("longName") or sym.split(".")[0],
+            "price": current,
+            "return_3m_pct": round((current - start) / start * 100, 2),
+            "pe_ratio": info.get("trailingPE"),
+            "market_cap": info.get("marketCap"),
+            "recommendation": _technicals_summary(closes, current)["recommendation"],
+        })
     results.sort(key=lambda x: x.get("return_3m_pct", 0), reverse=True)
+    if not results:
+        raise HTTPException(status_code=503, detail="Live market data is currently unavailable. Please try again later.")
     return {
         "sector": sector,
         "stocks_analysed": len(results),
         "data": results,
         "top_performer": results[0]["symbol"] if results else None,
-        "demo": used_demo,
     }
 
 @app.get("/api/v1/sectors/list")
