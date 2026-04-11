@@ -1173,6 +1173,538 @@ async def emergency_fund(monthly_expenses: float = Body(..., gt=0), months: int 
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  WEEK 3-4 ADVANCED — Options, Futures, Bonds, Economic Indicators
+# ══════════════════════════════════════════════════════════════════════════════
+import math
+
+# ── Black-Scholes pricing & Greeks ────────────────────────────────────────────
+def _norm_cdf(x: float) -> float:
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
+
+def _black_scholes(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> Dict:
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return {"error": "Invalid parameters"}
+    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    nd1, nd2 = _norm_cdf(d1), _norm_cdf(d2)
+    pdf_d1 = math.exp(-d1 ** 2 / 2) / math.sqrt(2 * math.pi)
+    if option_type.lower() == "call":
+        price = S * nd1 - K * math.exp(-r * T) * nd2
+        delta = nd1
+        rho   = K * T * math.exp(-r * T) * nd2 / 100
+    else:
+        price = K * math.exp(-r * T) * _norm_cdf(-d2) - S * _norm_cdf(-d1)
+        delta = nd1 - 1
+        rho   = -K * T * math.exp(-r * T) * _norm_cdf(-d2) / 100
+    gamma = pdf_d1 / (S * sigma * math.sqrt(T))
+    vega  = S * math.sqrt(T) * pdf_d1 / 100
+    if option_type.lower() == "call":
+        theta = (-S * pdf_d1 * sigma / (2 * math.sqrt(T)) - r * K * math.exp(-r * T) * nd2) / 365
+    else:
+        theta = (-S * pdf_d1 * sigma / (2 * math.sqrt(T)) + r * K * math.exp(-r * T) * _norm_cdf(-d2)) / 365
+    return {
+        "price": round(price, 2), "delta": round(delta, 4),
+        "gamma": round(gamma, 6), "theta": round(theta, 4),
+        "vega":  round(vega, 4),  "rho":   round(rho, 4),
+        "d1":    round(d1, 4),    "d2":    round(d2, 4),
+    }
+
+
+# ── Options pydantic models ────────────────────────────────────────────────────
+class BSRequest(BaseModel):
+    spot_price:   float
+    strike_price: float
+    time_to_expiry_days: float
+    risk_free_rate: float = 7.0   # % (India: ~repo rate)
+    volatility:   float           # % annual
+    option_type:  str = "call"    # "call" | "put"
+
+class YTMRequest(BaseModel):
+    face_value:   float = 1000.0
+    coupon_rate:  float            # % annual
+    current_price: float
+    years_to_maturity: float
+    frequency:    int = 2          # coupon payments per year
+
+
+# ── Options chain via Yahoo Finance ───────────────────────────────────────────
+def _fetch_options_chain(symbol: str, expiry_index: int = 0) -> Optional[Dict]:
+    cache_key = f"opt:{symbol}:{expiry_index}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        url = f"https://query1.finance.yahoo.com/v7/finance/options/{symbol}"
+        r = _requests.get(url, headers=_YF_HEADERS, timeout=12)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        result = (data.get("optionChain") or {}).get("result")
+        if not result:
+            return None
+        chain_result = result[0]
+        expiry_dates = chain_result.get("expirationDates", [])
+        options_list = chain_result.get("options", [])
+        if not options_list:
+            return None
+        idx = min(expiry_index, len(options_list) - 1)
+        chain = options_list[idx]
+        quote = chain_result.get("quote", {})
+        out = {
+            "symbol": symbol,
+            "underlying_price": quote.get("regularMarketPrice"),
+            "expiration_dates": [datetime.fromtimestamp(ts).strftime("%Y-%m-%d") for ts in expiry_dates],
+            "expiry": datetime.fromtimestamp(chain.get("expirationDate", 0)).strftime("%Y-%m-%d"),
+            "calls": _clean_options(chain.get("calls", [])),
+            "puts":  _clean_options(chain.get("puts",  [])),
+        }
+        cache_set(cache_key, out, ttl=180)
+        return out
+    except Exception as e:
+        logger.error(f"Options chain error for {symbol}: {e}")
+        return None
+
+def _clean_options(contracts: list) -> list:
+    out = []
+    for c in contracts:
+        out.append({
+            "contract":        c.get("contractSymbol", ""),
+            "strike":          c.get("strike"),
+            "last_price":      c.get("lastPrice"),
+            "bid":             c.get("bid"),
+            "ask":             c.get("ask"),
+            "change":          round(c.get("change", 0), 2),
+            "change_pct":      round(c.get("percentChange", 0), 2),
+            "volume":          c.get("volume"),
+            "open_interest":   c.get("openInterest"),
+            "implied_vol_pct": round((c.get("impliedVolatility") or 0) * 100, 2),
+            "in_the_money":    c.get("inTheMoney", False),
+        })
+    return out
+
+
+# ── Options API endpoints ──────────────────────────────────────────────────────
+@app.get("/api/v1/options/chain/{symbol}")
+async def get_options_chain(
+    symbol: str,
+    expiry_index: int = Query(0, ge=0, description="Index of expiry date (0 = nearest)"),
+):
+    """Fetch live options chain (calls & puts) for any symbol from Yahoo Finance."""
+    symbol = _validate_symbol(symbol)
+    data = _fetch_options_chain(symbol, expiry_index)
+    if not data:
+        raise HTTPException(status_code=503, detail=f"Options chain not available for {symbol}. Try major indices like ^NSEI, ^SPX or large-cap stocks.")
+    return data
+
+@app.post("/api/v1/options/black-scholes")
+async def black_scholes_pricer(req: BSRequest):
+    """
+    Black-Scholes option pricing with full Greeks.
+    Rate and volatility are in % (e.g., 7.0 for 7%).
+    """
+    if req.option_type.lower() not in ("call", "put"):
+        raise HTTPException(status_code=400, detail="option_type must be 'call' or 'put'")
+    T = req.time_to_expiry_days / 365.0
+    r = req.risk_free_rate / 100.0
+    sigma = req.volatility / 100.0
+    result = _black_scholes(req.spot_price, req.strike_price, T, r, sigma, req.option_type)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    intrinsic = max(0, req.spot_price - req.strike_price) if req.option_type == "call" else max(0, req.strike_price - req.spot_price)
+    return {
+        "inputs": {
+            "spot_price": req.spot_price, "strike_price": req.strike_price,
+            "time_to_expiry_days": req.time_to_expiry_days,
+            "risk_free_rate_pct": req.risk_free_rate,
+            "volatility_pct": req.volatility, "option_type": req.option_type,
+        },
+        "pricing": result,
+        "intrinsic_value": round(intrinsic, 2),
+        "time_value": round(result["price"] - intrinsic, 2),
+        "moneyness": "ITM" if (req.option_type == "call" and req.spot_price > req.strike_price) or (req.option_type == "put" and req.spot_price < req.strike_price) else "OTM" if req.spot_price != req.strike_price else "ATM",
+        "disclaimer": "Black-Scholes assumes constant volatility and European-style exercise. Not financial advice.",
+    }
+
+@app.get("/api/v1/options/popular")
+async def popular_option_underlyings():
+    """List popular symbols with options data."""
+    return {
+        "indian_indices": ["^NSEI", "^BSESN", "^NSEBANK"],
+        "top_stocks": ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS"],
+        "global": ["AAPL", "MSFT", "TSLA", "SPY", "QQQ"],
+        "note": "Indian F&O stocks may have limited options data via Yahoo Finance. Global symbols work best.",
+    }
+
+
+# ── Futures helpers ────────────────────────────────────────────────────────────
+FUTURES_SYMBOLS = {
+    "Gold":          {"symbol": "GC=F", "unit": "USD/oz", "exchange": "COMEX"},
+    "Silver":        {"symbol": "SI=F", "unit": "USD/oz", "exchange": "COMEX"},
+    "Crude Oil WTI": {"symbol": "CL=F", "unit": "USD/bbl","exchange": "NYMEX"},
+    "Natural Gas":   {"symbol": "NG=F", "unit": "USD/MMBtu","exchange": "NYMEX"},
+    "Copper":        {"symbol": "HG=F", "unit": "USD/lb", "exchange": "COMEX"},
+    "Nifty 50":      {"symbol": "^NSEI",  "unit": "INR points","exchange": "NSE", "is_index": True},
+    "Bank Nifty":    {"symbol": "^NSEBANK","unit": "INR points","exchange": "NSE", "is_index": True},
+    "Sensex":        {"symbol": "^BSESN", "unit": "INR points","exchange": "BSE", "is_index": True},
+    "USD/INR":       {"symbol": "USDINR=X","unit": "INR","exchange": "Forex"},
+}
+
+def _cost_of_carry_futures(spot: float, rate: float, days: int, dividend_yield: float = 0.0) -> float:
+    """Theoretical futures price via cost-of-carry model."""
+    T = days / 365
+    return round(spot * math.exp((rate - dividend_yield) * T), 2)
+
+
+# ── Futures API endpoints ──────────────────────────────────────────────────────
+@app.get("/api/v1/futures/list")
+async def list_futures():
+    """List all tracked futures instruments."""
+    return {
+        "commodity_futures": {k: v for k, v in FUTURES_SYMBOLS.items() if not v.get("is_index") and v.get("exchange") != "Forex"},
+        "index_futures": {k: v for k, v in FUTURES_SYMBOLS.items() if v.get("is_index")},
+        "currency_futures": {k: v for k, v in FUTURES_SYMBOLS.items() if v.get("exchange") == "Forex"},
+        "note": "Index futures prices are computed via cost-of-carry model from spot price.",
+    }
+
+@app.get("/api/v1/futures/quotes")
+async def get_futures_quotes():
+    """Fetch live prices for all tracked futures and compute theoretical futures for indices."""
+    RISK_FREE_RATE = 0.067   # India 6.7% repo-based
+    EXPIRY_DAYS    = 30      # approximate next-month expiry
+
+    results = []
+    for name, meta in FUTURES_SYMBOLS.items():
+        sym = meta["symbol"]
+        data = _fetch_yf(sym, period="5d", interval="1d")
+        if not data or not data["prices"]:
+            continue
+        latest = data["prices"][-1]
+        prev   = data["prices"][-2] if len(data["prices"]) > 1 else latest
+        spot   = latest["close"]
+        change     = round(spot - prev["close"], 2)
+        change_pct = round(change / prev["close"] * 100, 2) if prev["close"] else 0
+        row: Dict[str, Any] = {
+            "name":        name,
+            "symbol":      sym,
+            "spot_price":  spot,
+            "change":      change,
+            "change_pct":  change_pct,
+            "unit":        meta["unit"],
+            "exchange":    meta["exchange"],
+        }
+        if meta.get("is_index"):
+            theoretical = _cost_of_carry_futures(spot, RISK_FREE_RATE, EXPIRY_DAYS)
+            basis = round(theoretical - spot, 2)
+            row["theoretical_futures"] = theoretical
+            row["basis"]               = basis
+            row["basis_pct"]           = round(basis / spot * 100, 2)
+            row["expiry_days"]         = EXPIRY_DAYS
+        results.append(row)
+    if not results:
+        raise HTTPException(status_code=503, detail="Live market data unavailable.")
+    return {"futures": results, "risk_free_rate_pct": round(RISK_FREE_RATE * 100, 2), "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/api/v1/futures/quote/{symbol}")
+async def get_single_future(symbol: str, expiry_days: int = Query(30, ge=1, le=365)):
+    """Get futures quote for a single symbol with cost-of-carry analysis."""
+    symbol = _validate_symbol(symbol)
+    data = _fetch_yf(symbol, period="5d", interval="1d")
+    if not data or not data["prices"]:
+        raise HTTPException(status_code=503, detail="Live market data unavailable.")
+    latest = data["prices"][-1]
+    prev   = data["prices"][-2] if len(data["prices"]) > 1 else latest
+    spot   = latest["close"]
+    RISK_FREE_RATE = 0.067
+    theoretical = _cost_of_carry_futures(spot, RISK_FREE_RATE, expiry_days)
+    return {
+        "symbol": symbol, "spot_price": spot,
+        "change":  round(spot - prev["close"], 2),
+        "change_pct": round((spot - prev["close"]) / prev["close"] * 100, 2) if prev["close"] else 0,
+        "theoretical_futures_price": theoretical,
+        "basis": round(theoretical - spot, 2),
+        "risk_free_rate_pct": round(RISK_FREE_RATE * 100, 2),
+        "expiry_days": expiry_days,
+        "cost_of_carry_formula": "F = S × e^(r×T)",
+        "disclaimer": "Theoretical price only. Actual futures may differ due to dividends, convenience yield, and supply/demand.",
+    }
+
+
+# ── Bonds helpers ──────────────────────────────────────────────────────────────
+# RBI key rates — updated to latest known values (April 2025)
+RBI_RATES = {
+    "repo_rate":         6.50,
+    "reverse_repo_rate": 3.35,
+    "crr":               4.00,
+    "slr":              18.00,
+    "msf_rate":          6.75,
+    "bank_rate":         6.75,
+    "last_updated":      "April 9, 2025",
+    "next_mpc_meeting":  "June 4-6, 2025",
+    "source":            "Reserve Bank of India",
+}
+
+GSEC_BENCHMARKS = [
+    {"tenor": "91-Day T-Bill",  "symbol": "^IRX",    "maturity_years": 0.25, "type": "treasury_bill"},
+    {"tenor": "182-Day T-Bill", "symbol": None,       "maturity_years": 0.50, "type": "treasury_bill", "yield_approx": 6.65},
+    {"tenor": "364-Day T-Bill", "symbol": None,       "maturity_years": 1.00, "type": "treasury_bill", "yield_approx": 6.75},
+    {"tenor": "2-Year G-Sec",   "symbol": None,       "maturity_years": 2.00, "type": "gsec",          "yield_approx": 6.90},
+    {"tenor": "5-Year G-Sec",   "symbol": None,       "maturity_years": 5.00, "type": "gsec",          "yield_approx": 7.00},
+    {"tenor": "10-Year G-Sec",  "symbol": None,       "maturity_years": 10.0, "type": "gsec",          "yield_approx": 7.10},
+    {"tenor": "30-Year G-Sec",  "symbol": None,       "maturity_years": 30.0, "type": "gsec",          "yield_approx": 7.35},
+]
+
+INDIAN_BOND_ETFS = [
+    {"name": "Liquid BeES",        "symbol": "LIQUIDBEES.NS"},
+    {"name": "SBI ETF 10yr Gsec",  "symbol": "SETF10GILT.NS"},
+    {"name": "Nippon India ETF GSec Long Term", "symbol": "NIFTYBEES.NS"},
+]
+
+def _ytm_calculator(face: float, coupon_rate: float, price: float, years: float, freq: int) -> Dict:
+    """Iterative YTM calculation using Newton-Raphson."""
+    coupon = face * coupon_rate / 100 / freq
+    periods = int(years * freq)
+    # Bond price function
+    def bond_price(y):
+        r = y / freq
+        pv_coupons = coupon * (1 - (1 + r) ** (-periods)) / r if r != 0 else coupon * periods
+        pv_face    = face / (1 + r) ** periods
+        return pv_coupons + pv_face
+    # Secant method
+    y = coupon_rate / 100  # initial guess
+    for _ in range(100):
+        p  = bond_price(y) - price
+        dp = (bond_price(y + 1e-6) - bond_price(y - 1e-6)) / 2e-6
+        if abs(dp) < 1e-10:
+            break
+        y -= p / dp
+        if y < 0:
+            y = 0.001
+    # Duration
+    r = y / freq
+    duration_num = sum(
+        t / freq * coupon / (1 + r) ** t + (periods / freq * face / (1 + r) ** periods if t == periods else 0)
+        for t in range(1, periods + 1)
+    )
+    mac_duration = duration_num / price
+    mod_duration = mac_duration / (1 + r)
+    return {
+        "ytm_pct":            round(y * 100, 4),
+        "macaulay_duration":  round(mac_duration, 4),
+        "modified_duration":  round(mod_duration, 4),
+        "dv01":               round(price * mod_duration * 0.0001, 4),
+        "price_at_ytm":       round(bond_price(y), 2),
+    }
+
+
+# ── Bonds API endpoints ────────────────────────────────────────────────────────
+@app.get("/api/v1/bonds/rbi-rates")
+async def get_rbi_rates():
+    """Current RBI monetary policy key rates."""
+    return {**RBI_RATES, "disclaimer": "Rates are updated manually. Verify at rbi.org.in for latest values."}
+
+@app.get("/api/v1/bonds/yield-curve")
+async def get_yield_curve():
+    """Indian G-Sec benchmark yield curve (mix of live and approximated data)."""
+    curve = []
+    for bench in GSEC_BENCHMARKS:
+        row: Dict[str, Any] = {
+            "tenor":           bench["tenor"],
+            "maturity_years":  bench["maturity_years"],
+            "type":            bench["type"],
+        }
+        if bench.get("symbol"):
+            data = _fetch_yf(bench["symbol"], period="5d", interval="1d")
+            if data and data["prices"]:
+                row["yield_pct"]   = data["prices"][-1]["close"]
+                row["data_source"] = "live"
+            else:
+                row["yield_pct"]   = bench.get("yield_approx")
+                row["data_source"] = "reference"
+        else:
+            row["yield_pct"]   = bench.get("yield_approx")
+            row["data_source"] = "reference"
+        curve.append(row)
+    return {
+        "yield_curve": curve,
+        "rbi_repo_rate": RBI_RATES["repo_rate"],
+        "as_of": "April 2025",
+        "disclaimer": "Reference yields are approximate. Live data from Yahoo Finance where available.",
+    }
+
+@app.get("/api/v1/bonds/etfs")
+async def get_bond_etfs():
+    """Live prices for Indian bond/liquid ETFs."""
+    results = []
+    for etf in INDIAN_BOND_ETFS:
+        data = _fetch_yf(etf["symbol"], period="5d", interval="1d")
+        if not data or not data["prices"]:
+            continue
+        latest = data["prices"][-1]
+        prev   = data["prices"][-2] if len(data["prices"]) > 1 else latest
+        results.append({
+            "name":        etf["name"],
+            "symbol":      etf["symbol"],
+            "price":       latest["close"],
+            "change":      round(latest["close"] - prev["close"], 4),
+            "change_pct":  round((latest["close"] - prev["close"]) / prev["close"] * 100, 4) if prev["close"] else 0,
+        })
+    return {"bond_etfs": results, "timestamp": datetime.utcnow().isoformat()}
+
+@app.post("/api/v1/bonds/ytm")
+async def bond_ytm(req: YTMRequest):
+    """
+    Yield to Maturity calculator for bonds, with Macaulay & Modified Duration.
+    """
+    if req.current_price <= 0 or req.face_value <= 0:
+        raise HTTPException(status_code=400, detail="Prices must be positive.")
+    if req.years_to_maturity <= 0:
+        raise HTTPException(status_code=400, detail="Years to maturity must be positive.")
+    result = _ytm_calculator(req.face_value, req.coupon_rate, req.current_price, req.years_to_maturity, req.frequency)
+    coupon_amount = req.face_value * req.coupon_rate / 100 / req.frequency
+    premium_discount = "at par" if abs(req.current_price - req.face_value) < 0.01 else ("at premium" if req.current_price > req.face_value else "at discount")
+    return {
+        "inputs": {
+            "face_value": req.face_value, "coupon_rate_pct": req.coupon_rate,
+            "current_price": req.current_price, "years_to_maturity": req.years_to_maturity,
+            "frequency": req.frequency, "coupon_per_period": round(coupon_amount, 2),
+        },
+        "results": result,
+        "bond_trading": premium_discount,
+        "interpretation": {
+            "ytm": f"If held to maturity and coupons reinvested at YTM, your annualised return is {result['ytm_pct']}%",
+            "modified_duration": f"A 1% rise in rates → ~{result['modified_duration']:.2f}% fall in bond price",
+            "dv01": f"Price change per 1 basis-point move in yield: ₹{result['dv01']}",
+        },
+        "disclaimer": "Assumes flat yield curve and coupons reinvested at YTM. Consult a fixed-income advisor.",
+    }
+
+
+# ── Economic Indicators helpers ────────────────────────────────────────────────
+ECONOMIC_STATIC = {
+    "gdp_growth_rate_pct":         7.6,
+    "gdp_growth_description":      "FY2023-24 annual GDP growth (Advance Estimate)",
+    "cpi_inflation_pct":           4.85,
+    "cpi_description":             "CPI Inflation (February 2025)",
+    "wpi_inflation_pct":           2.38,
+    "wpi_description":             "WPI Inflation (February 2025)",
+    "iip_growth_pct":              5.0,
+    "iip_description":             "Index of Industrial Production growth",
+    "fiscal_deficit_gdp_pct":      5.1,
+    "fiscal_deficit_description":  "Fiscal Deficit as % of GDP (FY2024)",
+    "forex_reserves_bn_usd":       642.5,
+    "forex_description":           "RBI Forex Reserves (March 2025)",
+    "current_account_deficit_gdp": -1.2,
+    "unemployment_rate_pct":       7.8,
+    "as_of":                       "Q4 FY2024-25",
+    "source":                      "MOSPI, RBI, Ministry of Finance",
+    "disclaimer":                  "Reference data. Verify at mospi.gov.in and rbi.org.in for latest figures.",
+}
+
+CURRENCY_PAIRS = [
+    {"pair": "USD/INR", "symbol": "USDINR=X"},
+    {"pair": "EUR/INR", "symbol": "EURINR=X"},
+    {"pair": "GBP/INR", "symbol": "GBPINR=X"},
+    {"pair": "JPY/INR", "symbol": "JPYINR=X"},
+    {"pair": "AUD/INR", "symbol": "AUDINR=X"},
+    {"pair": "CNY/INR", "symbol": "CNYINR=X"},
+]
+
+COMMODITY_LIST = [
+    {"name": "Gold (Comex)",      "symbol": "GC=F",  "unit": "USD/oz"},
+    {"name": "Silver (Comex)",    "symbol": "SI=F",  "unit": "USD/oz"},
+    {"name": "Crude Oil (WTI)",   "symbol": "CL=F",  "unit": "USD/bbl"},
+    {"name": "Natural Gas",       "symbol": "NG=F",  "unit": "USD/MMBtu"},
+    {"name": "Copper",            "symbol": "HG=F",  "unit": "USD/lb"},
+    {"name": "Aluminium (LME proxy)", "symbol": "ALI=F","unit": "USD/cwt"},
+]
+
+
+# ── Economic Indicators API endpoints ─────────────────────────────────────────
+@app.get("/api/v1/economic/indicators")
+async def get_economic_indicators():
+    """Indian macroeconomic indicators (GDP, inflation, fiscal deficit, etc.)."""
+    return {
+        "macro_indicators": ECONOMIC_STATIC,
+        "rbi_rates": {k: v for k, v in RBI_RATES.items() if k != "source"},
+    }
+
+@app.get("/api/v1/economic/currency")
+async def get_currency_rates():
+    """Live INR exchange rates for major currency pairs."""
+    results = []
+    for pair in CURRENCY_PAIRS:
+        data = _fetch_yf(pair["symbol"], period="5d", interval="1d")
+        if not data or not data["prices"]:
+            continue
+        latest = data["prices"][-1]
+        prev   = data["prices"][-2] if len(data["prices"]) > 1 else latest
+        change     = round(latest["close"] - prev["close"], 4)
+        change_pct = round(change / prev["close"] * 100, 4) if prev["close"] else 0
+        hist_closes = [p["close"] for p in data["prices"]]
+        results.append({
+            "pair":        pair["pair"],
+            "symbol":      pair["symbol"],
+            "rate":        latest["close"],
+            "change":      change,
+            "change_pct":  change_pct,
+            "week_high":   max(hist_closes),
+            "week_low":    min(hist_closes),
+        })
+    if not results:
+        raise HTTPException(status_code=503, detail="Currency data temporarily unavailable.")
+    return {"currency_rates": results, "base_currency": "INR", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/api/v1/economic/commodities")
+async def get_commodity_prices():
+    """Live global commodity prices (Gold, Crude, Silver, etc.)."""
+    results = []
+    for comm in COMMODITY_LIST:
+        data = _fetch_yf(comm["symbol"], period="5d", interval="1d")
+        if not data or not data["prices"]:
+            continue
+        latest = data["prices"][-1]
+        prev   = data["prices"][-2] if len(data["prices"]) > 1 else latest
+        closes = [p["close"] for p in data["prices"]]
+        results.append({
+            "name":        comm["name"],
+            "symbol":      comm["symbol"],
+            "price":       latest["close"],
+            "change":      round(latest["close"] - prev["close"], 3),
+            "change_pct":  round((latest["close"] - prev["close"]) / prev["close"] * 100, 2) if prev["close"] else 0,
+            "unit":        comm["unit"],
+            "week_high":   max(closes),
+            "week_low":    min(closes),
+        })
+    if not results:
+        raise HTTPException(status_code=503, detail="Commodity data temporarily unavailable.")
+    return {"commodities": results, "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/api/v1/economic/dashboard")
+async def economic_dashboard():
+    """Aggregated snapshot: macro indicators + currency + rates."""
+    usdinr_data = _fetch_yf("USDINR=X", period="5d", interval="1d")
+    usdinr = usdinr_data["prices"][-1]["close"] if usdinr_data and usdinr_data["prices"] else None
+    gold_data = _fetch_yf("GC=F", period="5d", interval="1d")
+    gold = gold_data["prices"][-1]["close"] if gold_data and gold_data["prices"] else None
+    crude_data = _fetch_yf("CL=F", period="5d", interval="1d")
+    crude = crude_data["prices"][-1]["close"] if crude_data and crude_data["prices"] else None
+    nifty_data = _fetch_yf("^NSEI", period="5d", interval="1d")
+    nifty = nifty_data["prices"][-1]["close"] if nifty_data and nifty_data["prices"] else None
+    return {
+        "snapshot": {
+            "nifty_50":          nifty,
+            "usd_inr":           usdinr,
+            "gold_usd_oz":       gold,
+            "crude_oil_usd_bbl": crude,
+            "repo_rate_pct":     RBI_RATES["repo_rate"],
+            "cpi_inflation_pct": ECONOMIC_STATIC["cpi_inflation_pct"],
+            "gdp_growth_pct":    ECONOMIC_STATIC["gdp_growth_rate_pct"],
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn

@@ -4,15 +4,19 @@ import { useRouter } from "next/router";
 import { api } from "@/utils/api";
 
 const NAV = [
-  { href: "/",            icon: "⬛", label: "Dashboard" },
-  { href: "/stocks",      icon: "📈", label: "Stock Analysis" },
-  { href: "/compare",     icon: "⚖️",  label: "Compare" },
-  { href: "/portfolio",   icon: "💼", label: "Portfolio" },
-  { href: "/watchlist",   icon: "👁️",  label: "Watchlist" },
-  { href: "/sectors",     icon: "🏭", label: "Sectors" },
-  { href: "/calculators", icon: "🧮", label: "Calculators" },
-  { href: "/wellness",    icon: "💯", label: "Wellness" },
-  { href: "/chat",        icon: "🤖", label: "AI Assistant" },
+  { href: "/",                    icon: "⬛", label: "Dashboard" },
+  { href: "/stocks",              icon: "📈", label: "Stock Analysis" },
+  { href: "/options",             icon: "🎯", label: "Options" },
+  { href: "/futures",             icon: "⚡", label: "Futures" },
+  { href: "/bonds",               icon: "🏦", label: "Bonds" },
+  { href: "/economic-indicators", icon: "🌐", label: "Economic Data" },
+  { href: "/compare",             icon: "⚖️",  label: "Compare" },
+  { href: "/portfolio",           icon: "💼", label: "Portfolio" },
+  { href: "/watchlist",           icon: "👁️",  label: "Watchlist" },
+  { href: "/sectors",             icon: "🏭", label: "Sectors" },
+  { href: "/calculators",         icon: "🧮", label: "Calculators" },
+  { href: "/wellness",            icon: "💯", label: "Wellness" },
+  { href: "/chat",                icon: "🤖", label: "AI Assistant" },
 ];
 
 export default function Layout({ children, title }: { children: ReactNode; title?: string }) {

@@ -74,4 +74,34 @@ export const api = {
 
   // Monitoring
   monitoring: () => req("/api/v1/monitoring/summary"),
+
+  // Options (Week 3-4 Advanced)
+  optionsChain: (symbol: string, expiryIndex = 0) =>
+    req(`/api/v1/options/chain/${encodeURIComponent(symbol)}?expiry_index=${expiryIndex}`),
+  blackScholes: (data: {
+    spot_price: number; strike_price: number; time_to_expiry_days: number;
+    risk_free_rate?: number; volatility: number; option_type: string;
+  }) => req("/api/v1/options/black-scholes", "POST", data),
+  optionsPopular: () => req("/api/v1/options/popular"),
+
+  // Futures (Week 3-4 Advanced)
+  futuresList:   () => req("/api/v1/futures/list"),
+  futuresQuotes: () => req("/api/v1/futures/quotes"),
+  futuresQuote:  (symbol: string, expiryDays = 30) =>
+    req(`/api/v1/futures/quote/${encodeURIComponent(symbol)}?expiry_days=${expiryDays}`),
+
+  // Bonds (Week 3-4 Advanced)
+  rbiRates:    () => req("/api/v1/bonds/rbi-rates"),
+  yieldCurve:  () => req("/api/v1/bonds/yield-curve"),
+  bondEtfs:    () => req("/api/v1/bonds/etfs"),
+  bondYtm: (data: {
+    face_value?: number; coupon_rate: number; current_price: number;
+    years_to_maturity: number; frequency?: number;
+  }) => req("/api/v1/bonds/ytm", "POST", data),
+
+  // Economic Indicators (Week 3-4 Advanced)
+  economicIndicators: () => req("/api/v1/economic/indicators"),
+  economicCurrency:   () => req("/api/v1/economic/currency"),
+  economicCommodities:() => req("/api/v1/economic/commodities"),
+  economicDashboard:  () => req("/api/v1/economic/dashboard"),
 };
