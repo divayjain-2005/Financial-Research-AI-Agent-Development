@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Layout from "@/components/Layout";
+import TradingViewChart from "@/components/TradingViewChart";
 import { api } from "@/utils/api";
 
 function fmt(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
@@ -114,7 +115,7 @@ export default function Compare() {
           </div>
 
           {/* Visual return bars */}
-          <div className="card" style={{ padding: 20 }}>
+          <div className="card" style={{ padding: 20, marginBottom: 14 }}>
             <div className="section-title">1-Year Return Comparison</div>
             <div style={{ display:"flex", flexDirection:"column", gap:12, marginTop:8 }}>
               {results
@@ -134,6 +135,18 @@ export default function Compare() {
                     </div>
                   );
                 })}
+            </div>
+          </div>
+
+          {/* TradingView charts for each compared symbol */}
+          <div style={{ marginTop: 8 }}>
+            <div className="section-title" style={{ marginBottom: 14 }}>📈 Individual Charts</div>
+            <div style={{ display: "grid", gridTemplateColumns: results.length <= 2 ? "1fr" : "1fr 1fr", gap: 16 }}>
+              {results.slice(0, 4).map((r: any) => (
+                <div key={r.symbol}>
+                  <TradingViewChart symbol={r.symbol} height={380} />
+                </div>
+              ))}
             </div>
           </div>
         </>

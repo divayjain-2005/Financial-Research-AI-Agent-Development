@@ -69,3 +69,22 @@ SQLite at `backend/finance.db` — tables: `watchlist`, `portfolio`, `transactio
 
 Frontend: `npm` (package-lock.json)
 Backend: `pip` (requirements.txt)
+
+## TradingView Charts
+
+Reusable component at `frontend/src/components/TradingViewChart.tsx`.
+- Loads TradingView Advanced Chart Widget via script injection on mount
+- Symbol auto-mapped from Yahoo Finance format → TradingView format (e.g. `RELIANCE.NS` → `NSE:RELIANCE`, `^NSEI` → `NSE:NIFTY`)
+- Timeframe selector: 1m / 5m / 15m / 1h / 1D / 1W / 1M
+- Pre-loaded studies: RSI + EMA
+- Used in: Stock Analysis (Chart tab), Options (underlying chart toggle), Compare (Individual Charts section)
+
+## Options Chain (Computed)
+
+Yahoo Finance options endpoint (`/v7/finance/options/`) is blocked from Replit servers.
+Solution: `_compute_options_chain()` builds a synthetic chain using:
+1. Live spot price + 30-day historical volatility fetched via `yfinance`
+2. Black-Scholes pricing for all 21 strikes (ATM ± 10)
+3. Delta, Gamma, Theta, Vega per contract
+4. Simulated bid/ask spread (wider OTM), OI, and volume
+Works for all NSE/BSE symbols.

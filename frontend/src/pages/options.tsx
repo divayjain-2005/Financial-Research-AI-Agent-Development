@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
+import TradingViewChart from "@/components/TradingViewChart";
 import { api } from "@/utils/api";
 
 function fmt(n: any, dec = 2) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: dec }); }
@@ -16,6 +17,7 @@ export default function Options() {
   const [chainError, setChainError] = useState("");
   const [chainType, setChainType] = useState<"calls" | "puts">("calls");
   const [showGreeks, setShowGreeks] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const [expiryIdx, setExpiryIdx] = useState(0);
 
   const [bs, setBs] = useState({ spot_price: 24000, strike_price: 24000, time_to_expiry_days: 30, risk_free_rate: 6.5, volatility: 18, option_type: "call" });
@@ -148,6 +150,19 @@ export default function Options() {
               <div style={{ marginBottom: 14, padding: "10px 14px", background: "#0f2a3a", border: "1px solid #1d4a5a", borderRadius: 8, fontSize: "0.78rem", color: "#67c2e0", lineHeight: 1.6 }}>
                 ℹ️ {chainData.data_note}
               </div>
+
+              {/* TradingView chart toggle */}
+              <div style={{ marginBottom: 14 }}>
+                <button className={`btn ${showChart ? "btn-gold" : "btn-ghost"}`} style={{ fontSize: "0.82rem" }}
+                  onClick={() => setShowChart(c => !c)}>
+                  📈 {showChart ? "Hide" : "Show"} Underlying Chart
+                </button>
+              </div>
+              {showChart && (
+                <div style={{ marginBottom: 18 }}>
+                  <TradingViewChart symbol={chainSym} height={440} />
+                </div>
+              )}
 
               {/* Calls / Puts toggle + Greeks toggle */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>

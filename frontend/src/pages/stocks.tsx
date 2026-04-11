@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Layout from "@/components/Layout";
+import TradingViewChart from "@/components/TradingViewChart";
 import { api } from "@/utils/api";
 
 function fmt(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
@@ -16,7 +17,7 @@ export default function Stocks() {
   const [period, setPeriod] = useState("3mo");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"history">("overview");
+  const [tab, setTab] = useState<"overview"|"chart"|"technicals"|"fundamentals"|"history">("overview");
 
   async function load(sym?: string) {
     const s = (sym || symbol).trim().toUpperCase();
@@ -114,12 +115,19 @@ export default function Stocks() {
 
           {/* Tabs */}
           <div className="tab-bar">
-            {(["overview","technicals","fundamentals","history"] as const).map(t => (
+            {(["overview","chart","technicals","fundamentals","history"] as const).map(t => (
               <div key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === "chart" ? "📈 Chart" : t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
             ))}
           </div>
+
+          {/* Chart tab */}
+          {tab === "chart" && (
+            <div style={{ marginTop: 4 }}>
+              <TradingViewChart symbol={symbol} height={560} />
+            </div>
+          )}
 
           {/* Overview tab */}
           {tab === "overview" && analysis && (
