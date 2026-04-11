@@ -1,0 +1,85 @@
+Project Overview
+Build an AI-powered financial research assistant that analyzes stock markets, economic trends, and provides personalized investment insights through intelligent data integration. You'll master financial APIs, sentiment analysis, and risk assessment while creating a production-ready fintech application.
+Domain Focus: Financial Markets & Investment Analysis Core Skills: Financial data processing, sentiment analysis, risk modeling, regulatory compliance.
+Indian Financial Market APIs & Data Sources
+Primary Indian Market APIs:
+●NSE India: National Stock Exchange official API
+●BSE API: Bombay Stock Exchange data
+●Zerodha Kite API: Popular trading platform API
+●Alpha Vantage: Supports Indian stocks (NSE/BSE)
+●Financial Modeling Prep: Indian stock fundamentals
+●RBI API: Reserve Bank of India economic indicators
+News & Sentiment (India-focused):
+●Economic Times API: Leading financial news
+●Moneycontrol: Indian market news and analysis
+●BloombergQuint: Business news API
+●NewsAPI: Filter for Indian financial news
+Economic Data:
+●RBI Database: Interest rates, inflation, monetary policy
+●Ministry of Statistics: GDP, industrial production
+●SEBI Data: Market regulations and filing
+Focus: Industry-ready fintech skills, complex financial modeling
+●Domain: Comprehensive Financial Research Platform
+●APIs: 5+ integrations with fallback strategies and rate limiting
+●Framework: LangGraph for complex financial workflows
+●UI: Professional React/Next.js with advanced charting
+●Deployment: Multi-service architecture with real-time data
+●Features: Portfolio optimization, risk modeling, regulatory compliance
+
+technology stack
+●Frontend: React/Next.js + Tailwind CSS + Chart.js/D3
+●Backend: FastAPI + LangGraph + pandas + asyncio for real-time data
+●Database: PostgreSQL + Redis (market data caching)
+●LLM: GPT-4 or Claude for sophisticated financial analysis
+●Deployment: Vercel (frontend) + Railway/Render (backend)
+●Monitoring: Custom financial dashboard with LangSmith
+●Financial APIs: Multiple with failover strategies
+
+week 1-2 Foundation 
+●Set up development environment (Python, pandas, yfinance, LangChain)
+●Build basic stock price chatbot with Indian stock support (RELIANCE.NS, TCS.NS)
+●Add simple chart visualization using Plotly/Streamlit
+●Set up advanced environment (LangGraph, Redis for caching, PostgreSQL)
+●Implement real-time data streaming architecture
+●Add comprehensive error handling for API failures
+●Set up monitoring for API rate limits and costs
+●Create CI/CD pipeline with financial data testing
+
+week 3-4 Core Financial Agent Architecture
+Goal: Transform into a multi-source financial analysis agent
+●Integrate 2 financial tools (stock data + news sentiment)
+●Implement basic financial calculations (moving averages, RSI)
+●Add simple news sentiment analysis using TextBlob/VADER
+●Create stock comparison functionality
+●Handle API rate limiting and caching
+●Implement complex agent workflow with LangGraph for financial research
+●Add 4+ financial tools (stocks, options, futures, bonds, economic indicators)
+●Implement sophisticated sentiment analysis using transformer models
+●Add portfolio tracking and performance analytics
+●Create comprehensive financial data pipeline with ETL processes
+●Implement advanced technical analysis indicators
+
+week 5-6 Domain Specialization
+●Integrate NSE/BSE data via Alpha Vantage or Yahoo Finance (.NS/.BO suffixes)
+●Add SQLite database for saving stock watchlists
+●Create basic fundamental analysis (P/E, debt ratios, growth metrics)
+●Implement sector comparison for Indian markets
+●Add INR currency handling and Indian market hours
+●Add SIP (Systematic Investment Plan) calculator
+●Add Indian tax implications (LTCG/STCG calculations)
+●Integrate 5+ financial APIs with sophisticated error handling
+●Design complex database schema for financial data (PostgreSQL)
+●Implement advanced portfolio optimization using Modern Portfolio Theory
+●Add real-time market alerts and notification system
+●Create multi-asset class analysis (equities, fixed income, commodities)
+●Advanced: Implement options pricing models or algorithmic trading signals
+
+week 7-8 Polish & Production
+●Add input validation for stock symbols and date ranges
+●Build professional React/Next.js interface with advanced charting (Chart.js/D3)
+●Deploy with proper microservices architecture (API gateway, data services)
+●Add comprehensive monitoring dashboard for financial metrics
+●Implement financial data security best practices (encryption, secure APIs)
+●Add performance optimization for real-time data processing
+●Write comprehensive README with Indian stock symbol examples
+●Create technical documentation including API documentation
