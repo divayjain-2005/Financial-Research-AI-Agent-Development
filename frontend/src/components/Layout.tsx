@@ -5,7 +5,8 @@ import { api } from "@/utils/api";
 
 const NAV = [
   { href: "/",                    icon: "⬛", label: "Dashboard" },
-  { href: "/stocks",              icon: "📈", label: "Stock Analysis" },
+  { href: "/stocks",              icon: "📊", label: "Stock Analysis" },
+  { href: "/charts",              icon: "📈", label: "Charts" },
   { href: "/options",             icon: "🎯", label: "Options" },
   { href: "/futures",             icon: "⚡", label: "Futures" },
   { href: "/bonds",               icon: "🏦", label: "Bonds" },
