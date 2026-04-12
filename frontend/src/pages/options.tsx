@@ -1,24 +1,53 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Layout from "@/components/Layout";
-import TradingViewChart from "@/components/TradingViewChart";
 import { api } from "@/utils/api";
 
-function fmt(n: any, dec = 2) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: dec }); }
-function pctColor(n: any) { return n == null ? "var(--text-2)" : Number(n) >= 0 ? "var(--green)" : "var(--red)"; }
+const TradingViewChart = dynamic(() => import("@/components/TradingViewChart"), { ssr: false });
 
-const CHAIN_SYMBOLS = ["^NSEI", "^NSEBANK", "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "SBIN.NS", "WIPRO.NS"];
+function fmtLakh(n: any): string {
+  if (n == null || n === 0) return "0";
+  const abs = Math.abs(Number(n));
+  if (abs >= 1e7) return `${(abs / 1e7).toFixed(2)}Cr`;
+  if (abs >= 1e5) return `${(abs / 1e5).toFixed(2)} L`;
+  return abs.toLocaleString("en-IN");
+}
+function fmt2(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
+function pctStr(n: any) {
+  if (n == null) return "";
+  const v = Number(n);
+  return `(${v >= 0 ? "+" : ""}${v.toFixed(2)}%)`;
+}
+
+const CHAIN_SYMBOLS = [
+  { label: "NIFTY", sym: "^NSEI" },
+  { label: "BANKNIFTY", sym: "^NSEBANK" },
+  { label: "RELIANCE", sym: "RELIANCE.NS" },
+  { label: "TCS", sym: "TCS.NS" },
+  { label: "INFY", sym: "INFY.NS" },
+  { label: "HDFCBANK", sym: "HDFCBANK.NS" },
+  { label: "SBIN", sym: "SBIN.NS" },
+];
+
+function symToTV(s: string): string {
+  if (s.endsWith(".NS")) return `NSE:${s.replace(".NS", "")}`;
+  if (s.endsWith(".BO")) return `BSE:${s.replace(".BO", "")}`;
+  if (s === "^NSEI") return "NSE:NIFTY";
+  if (s === "^NSEBANK") return "NSE:BANKNIFTY";
+  if (s === "^BSESN") return "BSE:SENSEX";
+  return s;
+}
 
 export default function Options() {
   const [tab, setTab] = useState<"chain" | "pricer">("chain");
-
   const [chainSym, setChainSym] = useState("^NSEI");
   const [chainData, setChainData] = useState<any>(null);
   const [chainLoading, setChainLoading] = useState(false);
   const [chainError, setChainError] = useState("");
-  const [chainType, setChainType] = useState<"calls" | "puts">("calls");
-  const [showGreeks, setShowGreeks] = useState(false);
-  const [showChart, setShowChart] = useState(false);
   const [expiryIdx, setExpiryIdx] = useState(0);
+  const [selectedStrike, setSelectedStrike] = useState<number | null>(null);
+  const [selectedSide, setSelectedSide] = useState<"call" | "put" | null>(null);
+  const [searchStrike, setSearchStrike] = useState("");
 
   const [bs, setBs] = useState({ spot_price: 24000, strike_price: 24000, time_to_expiry_days: 30, risk_free_rate: 6.5, volatility: 18, option_type: "call" });
   const [bsResult, setBsResult] = useState<any>(null);
@@ -32,6 +61,8 @@ export default function Options() {
     setChainLoading(true);
     setChainError("");
     setChainData(null);
+    setSelectedStrike(null);
+    setSelectedSide(null);
     try {
       const data = await api.optionsChain(s, idx);
       setChainData(data);
@@ -42,28 +73,51 @@ export default function Options() {
   }
 
   async function calcBS() {
-    setBsLoading(true);
-    setBsError("");
-    setBsResult(null);
+    setBsLoading(true); setBsError(""); setBsResult(null);
     try {
       const res = await api.blackScholes({
-        spot_price: Number(bs.spot_price),
-        strike_price: Number(bs.strike_price),
-        time_to_expiry_days: Number(bs.time_to_expiry_days),
-        risk_free_rate: Number(bs.risk_free_rate),
-        volatility: Number(bs.volatility),
-        option_type: bs.option_type,
+        spot_price: Number(bs.spot_price), strike_price: Number(bs.strike_price),
+        time_to_expiry_days: Number(bs.time_to_expiry_days), risk_free_rate: Number(bs.risk_free_rate),
+        volatility: Number(bs.volatility), option_type: bs.option_type,
       });
       setBsResult(res);
-    } catch (e: any) {
-      setBsError(e.message || "Calculation failed");
-    }
+    } catch (e: any) { setBsError(e.message || "Calculation failed"); }
     setBsLoading(false);
   }
 
   useEffect(() => { loadChain(); }, []);
 
-  const contracts = chainData?.[chainType] || [];
+  const strikeRows = useMemo(() => {
+    if (!chainData) return [];
+    const callMap: Record<number, any> = {};
+    const putMap: Record<number, any> = {};
+    chainData.calls?.forEach((c: any) => { callMap[c.strike] = c; });
+    chainData.puts?.forEach((p: any)  => { putMap[p.strike]  = p; });
+    const all = Array.from(new Set([
+      ...(chainData.calls || []).map((c: any) => c.strike),
+      ...(chainData.puts  || []).map((p: any) => p.strike),
+    ])).sort((a, b) => a - b);
+    return all.map(s => ({ strike: s, call: callMap[s], put: putMap[s] }));
+  }, [chainData]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchStrike) return strikeRows;
+    return strikeRows.filter(r => String(r.strike).includes(searchStrike));
+  }, [strikeRows, searchStrike]);
+
+  const spotPrice = chainData?.underlying_price;
+  const atm = useMemo(() => {
+    if (!spotPrice || !strikeRows.length) return null;
+    return strikeRows.reduce((best, r) =>
+      Math.abs(r.strike - spotPrice) < Math.abs((best?.strike ?? Infinity) - spotPrice) ? r : best
+    , null as any)?.strike;
+  }, [strikeRows, spotPrice]);
+
+  const sym = chainData?.symbol || chainSym;
+  const tvSym = symToTV(chainSym);
+  const chartContract = selectedStrike
+    ? `${sym} ${selectedSide === "call" ? "CE" : "PE"} ${selectedStrike}`
+    : null;
 
   return (
     <Layout title="Options">
@@ -77,27 +131,27 @@ export default function Options() {
 
       {tab === "chain" && (
         <>
-          <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-            <input
-              className="input"
-              placeholder="Symbol e.g. ^NSEI, RELIANCE.NS, WIPRO.NS"
-              value={chainSym}
-              onChange={e => setChainSym(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === "Enter" && loadChain()}
-              style={{ maxWidth: 300 }}
-            />
-            <button className="btn btn-gold" onClick={() => loadChain()} disabled={chainLoading}>
-              {chainLoading ? <span className="spinner" /> : "Load Chain"}
-            </button>
-          </div>
-
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+          {/* Symbol selector row */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
             {CHAIN_SYMBOLS.map(s => (
-              <button key={s} className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                onClick={() => loadChain(s)}>
-                {s.replace("^", "").replace(".NS", "")}
+              <button
+                key={s.sym}
+                className={`btn ${chainSym === s.sym ? "btn-gold" : "btn-ghost"}`}
+                style={{ padding: "5px 14px", fontSize: "0.8rem" }}
+                onClick={() => loadChain(s.sym)}
+                disabled={chainLoading}
+              >
+                {s.label}
               </button>
             ))}
+            <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+              <input
+                className="input"
+                placeholder="Custom symbol e.g. WIPRO.NS"
+                style={{ width: 200, fontSize: "0.8rem" }}
+                onKeyDown={e => { if (e.key === "Enter") loadChain((e.target as HTMLInputElement).value); }}
+              />
+            </div>
           </div>
 
           {chainError && (
@@ -106,140 +160,230 @@ export default function Options() {
             </div>
           )}
 
+          {chainLoading && (
+            <div className="loading"><span className="spinner" /></div>
+          )}
+
           {chainData && (
             <>
-              {/* Summary row */}
-              <div className="card" style={{ padding: "14px 20px", marginBottom: 14, display: "flex", gap: 28, flexWrap: "wrap", alignItems: "center" }}>
+              {/* Header bar – NSE style */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+                background: "var(--bg-card)", borderRadius: 10, padding: "12px 18px",
+                marginBottom: 14, border: "1px solid var(--border)",
+              }}>
                 <div>
-                  <div className="metric-label">Underlying</div>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--text-1)" }}>{chainData.symbol} {chainData.company && `· ${chainData.company}`}</div>
+                  <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-1)" }}>{sym}</span>
+                  <span style={{ marginLeft: 8, fontSize: "0.72rem", color: "var(--text-3)" }}>NSE</span>
                 </div>
-                <div>
-                  <div className="metric-label">Spot Price</div>
-                  <div style={{ fontWeight: 700, fontSize: "1.3rem", color: "var(--text-1)" }}>{fmt(chainData.underlying_price)}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-1)" }}>{fmt2(spotPrice)}</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>Spot</span>
                 </div>
-                <div>
-                  <div className="metric-label">Historical Vol (30d)</div>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--gold)" }}>{chainData.historical_vol_pct}%</div>
-                </div>
-                <div>
-                  <div className="metric-label">Days to Expiry</div>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--text-1)" }}>{chainData.days_to_expiry}</div>
-                </div>
-                <div>
-                  <div className="metric-label">Expiry</div>
-                  <div style={{ fontWeight: 600, color: "var(--gold)" }}>{chainData.expiry}</div>
-                </div>
-              </div>
-
-              {/* Expiry selector */}
-              {chainData.expiration_dates?.length > 1 && (
-                <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "0.78rem", color: "var(--text-3)", alignSelf: "center", marginRight: 4 }}>Expiry:</span>
-                  {chainData.expiration_dates.map((d: string, i: number) => (
-                    <button key={d} className={`btn ${expiryIdx === i ? "btn-gold" : "btn-ghost"}`}
-                      style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                {chainData.historical_vol_pct && (
+                  <div>
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>HV30d </span>
+                    <span style={{ fontWeight: 600, color: "var(--gold)" }}>{chainData.historical_vol_pct}%</span>
+                  </div>
+                )}
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>Expiry:</span>
+                  {chainData.expiration_dates?.map((d: string, i: number) => (
+                    <button key={d}
+                      className={`btn ${expiryIdx === i ? "btn-gold" : "btn-ghost"}`}
+                      style={{ padding: "3px 9px", fontSize: "0.72rem" }}
                       onClick={() => { setExpiryIdx(i); loadChain(chainSym, i); }}>
                       {d}
                     </button>
                   ))}
                 </div>
-              )}
-
-              {/* Info banner */}
-              <div style={{ marginBottom: 14, padding: "10px 14px", background: "#0f2a3a", border: "1px solid #1d4a5a", borderRadius: 8, fontSize: "0.78rem", color: "#67c2e0", lineHeight: 1.6 }}>
-                ℹ️ {chainData.data_note}
+                <input
+                  className="input"
+                  placeholder="Search Strike"
+                  value={searchStrike}
+                  onChange={e => setSearchStrike(e.target.value)}
+                  style={{ width: 140, fontSize: "0.78rem" }}
+                />
               </div>
 
-              {/* TradingView chart toggle */}
-              <div style={{ marginBottom: 14 }}>
-                <button className={`btn ${showChart ? "btn-gold" : "btn-ghost"}`} style={{ fontSize: "0.82rem" }}
-                  onClick={() => setShowChart(c => !c)}>
-                  📈 {showChart ? "Hide" : "Show"} Underlying Chart
-                </button>
-              </div>
-              {showChart && (
-                <div style={{ marginBottom: 18 }}>
-                  <TradingViewChart symbol={chainSym} height={440} />
+              {/* Info note */}
+              {chainData.data_note && (
+                <div style={{ marginBottom: 10, padding: "8px 14px", background: "#0f2a3a", border: "1px solid #1d4a5a", borderRadius: 8, fontSize: "0.75rem", color: "#67c2e0" }}>
+                  ℹ️ {chainData.data_note}
                 </div>
               )}
 
-              {/* Calls / Puts toggle + Greeks toggle */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
-                {(["calls", "puts"] as const).map(ct => (
-                  <button key={ct} className={`btn ${chainType === ct ? "btn-gold" : "btn-ghost"}`}
-                    onClick={() => setChainType(ct)}>
-                    {ct.toUpperCase()} ({chainData[ct]?.length || 0})
-                  </button>
-                ))}
-                <div style={{ flex: 1 }} />
-                <button className={`btn ${showGreeks ? "btn-gold" : "btn-ghost"}`} style={{ fontSize: "0.8rem", padding: "6px 12px" }}
-                  onClick={() => setShowGreeks(g => !g)}>
-                  {showGreeks ? "Hide Greeks" : "Show Greeks"}
-                </button>
-              </div>
-
-              {/* Chain table */}
-              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              {/* Combined CALL | Strike | PUT table */}
+              <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 14 }}>
                 <div style={{ overflowX: "auto" }}>
-                  <table className="tbl">
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                     <thead>
-                      <tr>
-                        <th style={{ textAlign: "center" }}>ITM</th>
-                        <th style={{ textAlign: "right" }}>Strike</th>
-                        <th style={{ textAlign: "right" }}>Last</th>
-                        <th style={{ textAlign: "right" }}>Bid</th>
-                        <th style={{ textAlign: "right" }}>Ask</th>
-                        <th style={{ textAlign: "right" }}>IV %</th>
-                        <th style={{ textAlign: "right" }}>Volume</th>
-                        <th style={{ textAlign: "right" }}>OI</th>
-                        {showGreeks && <>
-                          <th style={{ textAlign: "right" }}>Δ Delta</th>
-                          <th style={{ textAlign: "right" }}>Γ Gamma</th>
-                          <th style={{ textAlign: "right" }}>Θ Theta</th>
-                          <th style={{ textAlign: "right" }}>ν Vega</th>
-                        </>}
+                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <th colSpan={4} style={{ textAlign: "center", padding: "10px 0", color: "#4ade80", fontWeight: 700, letterSpacing: "0.1em", borderBottom: "2px solid rgba(74,222,128,0.3)" }}>
+                          CALL
+                        </th>
+                        <th style={{ textAlign: "center", padding: "10px 14px", color: "var(--gold)", fontWeight: 700, borderLeft: "1px solid var(--border)", borderRight: "1px solid var(--border)", borderBottom: "2px solid var(--gold)", minWidth: 72 }}>
+                          Strike
+                        </th>
+                        <th colSpan={4} style={{ textAlign: "center", padding: "10px 0", color: "#f87171", fontWeight: 700, letterSpacing: "0.1em", borderBottom: "2px solid rgba(248,113,113,0.3)" }}>
+                          PUT
+                        </th>
+                      </tr>
+                      <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>Volume</th>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>OI</th>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>IV%</th>
+                        <th style={{ textAlign: "right", padding: "7px 14px", color: "#4ade80", fontWeight: 600 }}>LTP</th>
+                        <th style={{ textAlign: "center", padding: "7px 14px", borderLeft: "1px solid var(--border)", borderRight: "1px solid var(--border)" }}></th>
+                        <th style={{ textAlign: "left", padding: "7px 14px", color: "#f87171", fontWeight: 600 }}>LTP</th>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>IV%</th>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>OI</th>
+                        <th style={{ textAlign: "right", padding: "7px 12px", color: "var(--text-3)", fontWeight: 500 }}>Volume</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {contracts.map((c: any, i: number) => (
-                        <tr key={i} style={{
-                          background: c.in_the_money ? "rgba(234,179,8,0.07)" : "transparent",
-                          fontWeight: c.in_the_money ? 600 : 400,
-                        }}>
-                          <td style={{ textAlign: "center" }}>
-                            {c.in_the_money
-                              ? <span style={{ color: "var(--green)", fontSize: "0.8rem" }}>ITM</span>
-                              : <span style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>OTM</span>}
-                          </td>
-                          <td className="num" style={{ color: "var(--gold)", fontWeight: 700, fontSize: "0.95rem" }}>{fmt(c.strike)}</td>
-                          <td className="num" style={{ color: "var(--text-1)" }}>{fmt(c.last_price)}</td>
-                          <td className="num" style={{ color: "var(--text-3)" }}>{fmt(c.bid)}</td>
-                          <td className="num" style={{ color: "var(--text-3)" }}>{fmt(c.ask)}</td>
-                          <td className="num" style={{ color: "#60a5fa" }}>{c.implied_vol_pct ? `${c.implied_vol_pct}%` : "—"}</td>
-                          <td className="num">{c.volume?.toLocaleString("en-IN") || "—"}</td>
-                          <td className="num">{c.open_interest?.toLocaleString("en-IN") || "—"}</td>
-                          {showGreeks && <>
-                            <td className="num" style={{ color: "#a78bfa" }}>{fmt(c.delta, 4)}</td>
-                            <td className="num" style={{ color: "#60a5fa" }}>{fmt(c.gamma, 5)}</td>
-                            <td className="num" style={{ color: "#fb923c" }}>{fmt(c.theta, 4)}</td>
-                            <td className="num" style={{ color: "#34d399" }}>{fmt(c.vega, 4)}</td>
-                          </>}
-                        </tr>
-                      ))}
+                      {filteredRows.map(({ strike, call, put }) => {
+                        const isAtm = strike === atm;
+                        const callItm = call?.in_the_money;
+                        const putItm  = put?.in_the_money;
+                        const selected = selectedStrike === strike;
+
+                        return (
+                          <tr
+                            key={strike}
+                            style={{
+                              borderBottom: "1px solid rgba(255,255,255,0.04)",
+                              background: isAtm
+                                ? "rgba(234,179,8,0.08)"
+                                : selected ? "rgba(255,255,255,0.06)" : "transparent",
+                              outline: isAtm ? "1px solid rgba(234,179,8,0.3)" : "none",
+                            }}
+                          >
+                            {/* CALL side */}
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("call"); }}
+                              style={{
+                                textAlign: "right", padding: "9px 12px",
+                                color: callItm ? "#4ade80" : "var(--text-2)",
+                                cursor: "pointer", transition: "background 0.1s",
+                                background: selectedStrike === strike && selectedSide === "call" ? "rgba(74,222,128,0.08)" : "transparent",
+                              }}
+                            >
+                              {fmtLakh(call?.volume)}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("call"); }}
+                              style={{ textAlign: "right", padding: "9px 12px", color: callItm ? "#4ade80" : "var(--text-2)", cursor: "pointer" }}
+                            >
+                              {fmtLakh(call?.open_interest)}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("call"); }}
+                              style={{ textAlign: "right", padding: "9px 12px", color: "#60a5fa", cursor: "pointer" }}
+                            >
+                              {call?.implied_vol_pct ? `${call.implied_vol_pct}%` : "—"}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("call"); }}
+                              style={{
+                                textAlign: "right", padding: "9px 14px", cursor: "pointer",
+                                fontWeight: callItm ? 700 : 600,
+                                color: callItm ? "#4ade80" : "var(--text-1)",
+                              }}
+                            >
+                              {call ? `₹${fmt2(call.last_price)}` : "—"}
+                            </td>
+
+                            {/* Strike center */}
+                            <td style={{
+                              textAlign: "center", padding: "9px 14px", fontWeight: 700, fontSize: "0.88rem",
+                              color: isAtm ? "var(--gold)" : "var(--text-1)",
+                              borderLeft: "1px solid var(--border)", borderRight: "1px solid var(--border)",
+                              background: isAtm ? "rgba(234,179,8,0.05)" : "transparent",
+                            }}>
+                              {strike.toLocaleString("en-IN")}
+                              {isAtm && (
+                                <div style={{ fontSize: "0.6rem", color: "var(--gold)", fontWeight: 400, opacity: 0.8 }}>ATM</div>
+                              )}
+                            </td>
+
+                            {/* PUT side */}
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("put"); }}
+                              style={{
+                                textAlign: "left", padding: "9px 14px", cursor: "pointer",
+                                fontWeight: putItm ? 700 : 600,
+                                color: putItm ? "#f87171" : "var(--text-1)",
+                                background: selectedStrike === strike && selectedSide === "put" ? "rgba(248,113,113,0.08)" : "transparent",
+                              }}
+                            >
+                              {put ? `₹${fmt2(put.last_price)}` : "—"}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("put"); }}
+                              style={{ textAlign: "right", padding: "9px 12px", color: "#60a5fa", cursor: "pointer" }}
+                            >
+                              {put?.implied_vol_pct ? `${put.implied_vol_pct}%` : "—"}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("put"); }}
+                              style={{ textAlign: "right", padding: "9px 12px", color: putItm ? "#f87171" : "var(--text-2)", cursor: "pointer" }}
+                            >
+                              {fmtLakh(put?.open_interest)}
+                            </td>
+                            <td
+                              onClick={() => { setSelectedStrike(strike); setSelectedSide("put"); }}
+                              style={{ textAlign: "right", padding: "9px 12px", color: putItm ? "#f87171" : "var(--text-2)", cursor: "pointer" }}
+                            >
+                              {fmtLakh(put?.volume)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              <div style={{ marginTop: 10, fontSize: "0.73rem", color: "var(--text-3)" }}>
-                ⚠️ Prices are theoretical (Black-Scholes model). OI/Volume are illustrative. Not financial advice.
+              <div style={{ fontSize: "0.72rem", color: "var(--text-3)", marginBottom: 8 }}>
+                ⚠️ Prices are theoretical (Black-Scholes). Click any row to view the underlying chart. Not financial advice.
               </div>
+
+              {/* Chart panel — shown when a row is clicked */}
+              {selectedStrike !== null && (
+                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "12px 18px", borderBottom: "1px solid var(--border)",
+                    background: "var(--bg-hover)",
+                  }}>
+                    <span style={{ fontWeight: 700, color: "var(--text-1)" }}>
+                      {sym} — {selectedSide?.toUpperCase()} {selectedStrike}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+                      (Showing underlying chart: {tvSym})
+                    </span>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ marginLeft: "auto", padding: "4px 10px", fontSize: "0.75rem" }}
+                      onClick={() => { setSelectedStrike(null); setSelectedSide(null); }}
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                  <TradingViewChart
+                    key={`${tvSym}-${selectedStrike}-${selectedSide}`}
+                    symbol={tvSym}
+                    height={500}
+                    showToolbar
+                  />
+                </div>
+              )}
             </>
           )}
 
           {!chainData && !chainLoading && !chainError && (
-            <div className="empty">Enter any Indian or global stock symbol to generate its options chain</div>
+            <div className="empty">Select a symbol above to load the options chain</div>
           )}
         </>
       )}
@@ -285,18 +429,18 @@ export default function Options() {
               <>
                 <div className="card" style={{ padding: 20, marginBottom: 14 }}>
                   <div className="section-title" style={{ marginBottom: 14 }}>Option Price</div>
-                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 4 }}>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                     <div>
                       <div className="metric-label">Theoretical Price</div>
-                      <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--gold)" }}>{fmt(bsResult.pricing?.price)}</div>
+                      <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--gold)" }}>{fmt2(bsResult.pricing?.price)}</div>
                     </div>
                     <div>
                       <div className="metric-label">Intrinsic Value</div>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-1)" }}>{fmt(bsResult.intrinsic_value)}</div>
+                      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-1)" }}>{fmt2(bsResult.intrinsic_value)}</div>
                     </div>
                     <div>
                       <div className="metric-label">Time Value</div>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-2)" }}>{fmt(bsResult.time_value)}</div>
+                      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-2)" }}>{fmt2(bsResult.time_value)}</div>
                     </div>
                     <div>
                       <div className="metric-label">Moneyness</div>
@@ -320,12 +464,11 @@ export default function Options() {
                         <span style={{ fontWeight: 600, color: g.color }}>{g.label}</span>
                         <div style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: 2 }}>{g.desc}</div>
                       </div>
-                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: g.color, fontSize: "1rem" }}>{fmt(g.value, 4)}</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: g.color, fontSize: "1rem" }}>
+                        {g.value == null ? "—" : Number(g.value).toFixed(4)}
+                      </span>
                     </div>
                   ))}
-                  <div style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: 4 }}>
-                    ⚠️ Black-Scholes assumes constant volatility & European exercise. Not financial advice.
-                  </div>
                 </div>
               </>
             ) : (
@@ -335,10 +478,6 @@ export default function Options() {
                   <p>The Black-Scholes model prices European options using 5 inputs: spot price, strike, time to expiry, risk-free rate, and volatility.</p>
                   <p style={{ marginTop: 10 }}><strong style={{ color: "var(--text-1)" }}>Greeks</strong> measure sensitivity to market factors — essential for risk management and hedging.</p>
                   <p style={{ marginTop: 10 }}>Typical Indian values: Risk-free rate ≈ 6.5% (RBI Repo), Nifty IV ≈ 14–22%.</p>
-                  <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--bg-hover)", borderRadius: 8 }}>
-                    <div style={{ fontSize: "0.78rem", color: "var(--text-3)", marginBottom: 6 }}>Quick example:</div>
-                    <div style={{ fontSize: "0.82rem" }}>Nifty at 24,000 · Strike 24,000 · 30 days · 6.5% rate · 18% vol</div>
-                  </div>
                 </div>
               </div>
             )}

@@ -1,6 +1,9 @@
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import Layout from "@/components/Layout";
 import { api } from "@/utils/api";
+
+const TradingViewChart = dynamic(() => import("@/components/TradingViewChart"), { ssr: false });
 
 function fmt(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
 function pct(n: any) { return n == null ? "—" : `${Number(n) >= 0 ? "+" : ""}${Number(n).toFixed(2)}%`; }
@@ -16,10 +19,22 @@ export default function Stocks() {
   const [period, setPeriod] = useState("3mo");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"history">("overview");
+  const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"history"|"chart">("overview");
+
+  function parseStockSym(raw: string): string {
+    const parts = raw.trim().toUpperCase().split(/\s+/);
+    if (parts.length >= 2) {
+      const exchange = parts[parts.length - 1];
+      const ticker = parts.slice(0, -1).join("");
+      if (exchange === "NSE") return `${ticker}.NS`;
+      if (exchange === "BSE") return `${ticker}.BO`;
+    }
+    return parts[0];
+  }
 
   async function load(sym?: string) {
-    const s = (sym || symbol).trim().toUpperCase();
+    const raw = sym || symbol;
+    const s = parseStockSym(raw);
     if (!s) return;
     setSymbol(s);
     setLoading(true);
@@ -48,7 +63,7 @@ export default function Stocks() {
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
         <input
           className="input"
-          placeholder="Enter symbol e.g. RELIANCE.NS or TCS.NS"
+          placeholder="e.g. RELIANCE NSE  or  TCS NSE  or  RELIANCE.NS"
           value={symbol}
           onChange={e => setSymbol(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === "Enter" && load()}
@@ -114,7 +129,7 @@ export default function Stocks() {
 
           {/* Tabs */}
           <div className="tab-bar">
-            {(["overview","technicals","fundamentals","history"] as const).map(t => (
+            {(["overview","technicals","fundamentals","history","chart"] as const).map(t => (
               <div key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
@@ -179,6 +194,18 @@ export default function Stocks() {
           {/* Fundamentals tab */}
           {tab === "fundamentals" && (
             <FundamentalsTab symbol={symbol} />
+          )}
+
+          {/* Chart tab */}
+          {tab === "chart" && (
+            <div style={{ marginTop: 4 }}>
+              <TradingViewChart
+                key={symbol}
+                symbol={symbol}
+                height={560}
+                showToolbar
+              />
+            </div>
           )}
 
           {/* History tab */}
