@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Layout from "@/components/Layout";
 import { api } from "@/utils/api";
@@ -20,6 +20,15 @@ export default function Stocks() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"history"|"chart">("overview");
+  const chartAnchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (tab === "chart" && chartAnchorRef.current) {
+      setTimeout(() => {
+        chartAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  }, [tab]);
 
   function parseStockSym(raw: string): string {
     const parts = raw.trim().toUpperCase().split(/\s+/);
@@ -198,11 +207,18 @@ export default function Stocks() {
 
           {/* Chart tab */}
           {tab === "chart" && (
-            <div style={{ marginTop: 4 }}>
+            <div ref={chartAnchorRef} style={{ marginTop: 4 }}>
+              <div style={{
+                marginBottom: 8, padding: "7px 14px", background: "#0f2a3a",
+                border: "1px solid #1d4a5a", borderRadius: 8,
+                fontSize: "0.75rem", color: "#67c2e0",
+              }}>
+                ℹ️ NSE/BSE charts may show a TradingView login prompt — click the <strong>✕</strong> on that popup to dismiss it and the chart will display.
+              </div>
               <TradingViewChart
                 key={symbol}
                 symbol={symbol}
-                height={560}
+                height={Math.max(420, (typeof window !== "undefined" ? window.innerHeight : 700) - 320)}
                 showToolbar
               />
             </div>
@@ -285,5 +301,3 @@ function FundamentalsTab({ symbol }: { symbol: string }) {
   );
 }
 
-// small hook workaround
-function useEffect(fn: any, deps: any[]) { React.useEffect(fn, deps); }
