@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, ColorType, CrosshairMode, LineStyle } from "lightweight-charts";
+import { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } from "lightweight-charts";
 import { api } from "@/utils/api";
 
 interface TradingViewChartProps {
@@ -85,7 +85,7 @@ export default function TradingViewChart({
       },
     });
 
-    const candles = chart.addCandlestickSeries({
+    const candles = chart.addSeries(CandlestickSeries, {
       upColor:         colors.upColor,
       downColor:       colors.downColor,
       wickUpColor:     colors.wickUpColor,
@@ -93,7 +93,7 @@ export default function TradingViewChart({
       borderVisible:   false,
     });
 
-    const volume = chart.addHistogramSeries({
+    const volume = chart.addSeries(HistogramSeries, {
       color:   "rgba(38,166,154,0.3)",
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
