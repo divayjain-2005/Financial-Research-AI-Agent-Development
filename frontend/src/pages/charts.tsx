@@ -1,61 +1,63 @@
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import Layout from "@/components/Layout";
-import TradingViewChart from "@/components/TradingViewChart";
+
+const TradingViewChart = dynamic(() => import("@/components/TradingViewChart"), { ssr: false });
 
 const GROUPS = [
   {
     label: "Indian Indices",
     symbols: [
-      { label: "Nifty 50",    sym: "^NSEI" },
-      { label: "Bank Nifty",  sym: "^NSEBANK" },
-      { label: "Sensex",      sym: "^BSESN" },
-      { label: "Nifty IT",    sym: "^CNXIT" },
-      { label: "Nifty Pharma",sym: "^CNXPHARMA" },
+      { label: "Nifty 50",    sym: "NSE:NIFTY" },
+      { label: "Bank Nifty",  sym: "NSE:BANKNIFTY" },
+      { label: "Sensex",      sym: "BSE:SENSEX" },
+      { label: "Nifty IT",    sym: "NSE:CNXIT" },
+      { label: "Nifty Pharma",sym: "NSE:CNXPHARMA" },
     ],
   },
   {
-    label: "Large Cap",
+    label: "Large Cap (NSE)",
     symbols: [
-      { label: "Reliance",    sym: "RELIANCE.NS" },
-      { label: "TCS",         sym: "TCS.NS" },
-      { label: "Infosys",     sym: "INFY.NS" },
-      { label: "HDFC Bank",   sym: "HDFCBANK.NS" },
-      { label: "ICICI Bank",  sym: "ICICIBANK.NS" },
-      { label: "Wipro",       sym: "WIPRO.NS" },
-      { label: "SBI",         sym: "SBIN.NS" },
-      { label: "Maruti",      sym: "MARUTI.NS" },
-      { label: "Sun Pharma",  sym: "SUNPHARMA.NS" },
-      { label: "Tata Motors", sym: "TATAMOTORS.NS" },
-      { label: "L&T",         sym: "LT.NS" },
-      { label: "HCL Tech",    sym: "HCLTECH.NS" },
+      { label: "Reliance",    sym: "NSE:RELIANCE" },
+      { label: "TCS",         sym: "NSE:TCS" },
+      { label: "Infosys",     sym: "NSE:INFY" },
+      { label: "HDFC Bank",   sym: "NSE:HDFCBANK" },
+      { label: "ICICI Bank",  sym: "NSE:ICICIBANK" },
+      { label: "Wipro",       sym: "NSE:WIPRO" },
+      { label: "SBI",         sym: "NSE:SBIN" },
+      { label: "Maruti",      sym: "NSE:MARUTI" },
+      { label: "Sun Pharma",  sym: "NSE:SUNPHARMA" },
+      { label: "Tata Motors", sym: "NSE:TATAMOTORS" },
+      { label: "L&T",         sym: "NSE:LT" },
+      { label: "HCL Tech",    sym: "NSE:HCLTECH" },
     ],
   },
   {
     label: "Global Indices",
     symbols: [
-      { label: "S&P 500",     sym: "^GSPC" },
-      { label: "NASDAQ",      sym: "^IXIC" },
-      { label: "Dow Jones",   sym: "^DJI" },
-      { label: "FTSE 100",    sym: "^FTSE" },
-      { label: "Nikkei 225",  sym: "^N225" },
-      { label: "Hang Seng",   sym: "^HSI" },
+      { label: "S&P 500",     sym: "SP:SPX" },
+      { label: "NASDAQ 100",  sym: "NASDAQ:NDX" },
+      { label: "Dow Jones",   sym: "DJ:DJI" },
+      { label: "FTSE 100",    sym: "FTSE:FTSE" },
+      { label: "Nikkei 225",  sym: "TVC:NI225" },
+      { label: "Hang Seng",   sym: "TVC:HSI" },
     ],
   },
   {
     label: "Commodities & FX",
     symbols: [
-      { label: "Gold",        sym: "GC=F" },
-      { label: "Silver",      sym: "SI=F" },
-      { label: "Crude Oil",   sym: "CL=F" },
-      { label: "USD/INR",     sym: "USDINR=X" },
-      { label: "EUR/INR",     sym: "EURINR=X" },
-      { label: "GBP/INR",     sym: "GBPINR=X" },
+      { label: "Gold",        sym: "TVC:GOLD" },
+      { label: "Silver",      sym: "TVC:SILVER" },
+      { label: "Crude Oil",   sym: "TVC:USOIL" },
+      { label: "USD/INR",     sym: "FX:USDINR" },
+      { label: "EUR/INR",     sym: "FX:EURINR" },
+      { label: "GBP/INR",     sym: "FX:GBPINR" },
     ],
   },
 ];
 
 export default function Charts() {
-  const [active, setActive] = useState("RELIANCE.NS");
+  const [active, setActive] = useState("TVC:GOLD");
   const [customInput, setCustomInput] = useState("");
 
   function handleCustom() {
@@ -131,23 +133,13 @@ export default function Charts() {
         </div>
 
         {/* Chart area */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-1)" }}>
-              {activeLabel}
-            </span>
-            <span style={{ fontSize: "0.78rem", color: "var(--text-3)", fontFamily: "monospace" }}>
-              {active}
-            </span>
-          </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <TradingViewChart
-              key={active}
-              symbol={active}
-              height={580}
-              showToolbar
-            />
-          </div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <TradingViewChart
+            key={active}
+            symbol={active}
+            height={600}
+            showToolbar
+          />
         </div>
 
       </div>
