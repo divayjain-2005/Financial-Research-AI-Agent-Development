@@ -79,7 +79,14 @@ export default function Stocks() {
           style={{ maxWidth: 360 }}
         />
         <select className="input" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 100 }}>
-          {["1mo","3mo","6mo","1y","2y","5y"].map(p => <option key={p}>{p}</option>)}
+          {[
+          { val: "1mo", label: "1M" },
+          { val: "3mo", label: "3M" },
+          { val: "6mo", label: "6M" },
+          { val: "1y",  label: "1Y" },
+          { val: "2y",  label: "2Y" },
+          { val: "5y",  label: "5Y" },
+        ].map(p => <option key={p.val} value={p.val}>{p.label}</option>)}
         </select>
         <button className="btn btn-gold" onClick={() => load()} disabled={loading}>
           {loading ? <span className="spinner" /> : "Analyse"}
