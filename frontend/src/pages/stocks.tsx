@@ -15,11 +15,10 @@ export default function Stocks() {
   const [symbol, setSymbol] = useState("");
   const [quote, setQuote] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [period, setPeriod] = useState("3mo");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"history"|"chart">("overview");
+  const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"chart">("overview");
   const chartAnchorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,16 +47,14 @@ export default function Stocks() {
     setSymbol(s);
     setLoading(true);
     setError("");
-    setQuote(null); setAnalysis(null); setHistory([]);
+    setQuote(null); setAnalysis(null);
     try {
-      const [q, a, h] = await Promise.all([
+      const [q, a] = await Promise.all([
         api.quote(s),
         api.analyze(s),
-        api.historical(s, period),
       ]);
       setQuote(q);
       setAnalysis(a);
-      setHistory(h.data || []);
     } catch (e: any) {
       setError(e.message || "Failed to fetch data");
     }
@@ -145,7 +142,7 @@ export default function Stocks() {
 
           {/* Tabs */}
           <div className="tab-bar">
-            {(["overview","technicals","fundamentals","history","chart"] as const).map(t => (
+            {(["overview","technicals","fundamentals","chart"] as const).map(t => (
               <div key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
@@ -231,27 +228,6 @@ export default function Stocks() {
             </div>
           )}
 
-          {/* History tab */}
-          {tab === "history" && (
-            <div className="card" style={{ padding: 20 }}>
-              <div className="section-title">Price History ({period})</div>
-              <table className="tbl">
-                <thead><tr><th>Date</th><th style={{textAlign:"right"}}>Open</th><th style={{textAlign:"right"}}>High</th><th style={{textAlign:"right"}}>Low</th><th style={{textAlign:"right"}}>Close</th><th style={{textAlign:"right"}}>Volume</th></tr></thead>
-                <tbody>
-                  {[...history].reverse().slice(0,50).map((row: any) => (
-                    <tr key={row.date}>
-                      <td style={{color:"var(--text-2)"}}>{row.date}</td>
-                      <td className="num">₹{fmt(row.open)}</td>
-                      <td className="num" style={{color:"var(--green)"}}>₹{fmt(row.high)}</td>
-                      <td className="num" style={{color:"var(--red)"}}>₹{fmt(row.low)}</td>
-                      <td className="num" style={{color:"var(--text-1)",fontWeight:600}}>₹{fmt(row.close)}</td>
-                      <td className="num">{row.volume?.toLocaleString("en-IN")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>
       )}
 
