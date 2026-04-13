@@ -893,8 +893,8 @@ Format responses with headers and bullet points for readability."""
 
 @app.post("/api/v1/chat/query")
 async def chat_query(req: ChatRequest):
-    """AI financial assistant. Uses Claude if ANTHROPIC_API_KEY is set, else rule-based fallback."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    """AI financial assistant. Uses Claude if CLAUDE_API_KEY is set, else rule-based fallback."""
+    api_key = os.environ.get("CLAUDE_API_KEY", "")
     user_msg = req.message.strip()
     if not user_msg:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
@@ -941,7 +941,7 @@ async def chat_query(req: ChatRequest):
     else:
         answer = (f"I'm Artha, your AI financial assistant. I can help with stock analysis, "
                   f"technical indicators, SIP calculations, tax planning, and more. "
-                  f"Set ANTHROPIC_API_KEY for full Claude-powered responses. "
+                  f"Set CLAUDE_API_KEY for full Claude-powered responses. "
                   f"You asked: \"{user_msg}\"")
     return {
         "response": answer,
