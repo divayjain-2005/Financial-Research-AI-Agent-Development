@@ -20,9 +20,13 @@ export default function Chat() {
     {
       role: "assistant",
       text: "👋 Hello! I'm **Artha**, your AI financial research assistant specialising in Indian markets.\n\nI can help you with:\n- Stock analysis and technical indicators\n- SIP, tax, and EMI calculations\n- Sector and market analysis\n- Investment strategy and planning\n\nWhat would you like to know?",
-      time: new Date().toLocaleTimeString(),
+      time: "",
     }
   ]);
+
+  useEffect(() => {
+    setMessages(prev => prev.map((m, i) => i === 0 && !m.time ? { ...m, time: new Date().toLocaleTimeString() } : m));
+  }, []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -121,7 +125,7 @@ export default function Chat() {
           </button>
         </div>
         <div style={{ fontSize:"0.65rem", color:"var(--text-3)", textAlign:"center", marginTop:6 }}>
-          Not investment advice · Add ANTHROPIC_API_KEY for full Claude-powered responses
+          Not investment advice · Powered by Claude AI (Anthropic)
         </div>
       </div>
     </Layout>
