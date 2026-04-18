@@ -327,10 +327,12 @@ SECTOR_STOCKS = {
     "Auto": ["MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "TATAMOTORS.NS", "M&M.NS"],
 }
 
-# ── LTCG / STCG tax rates (Week 5-6) ─────────────────────────────────────────
-LTCG_EQUITY_RATE = 0.10      # 10% on gains > ₹1 lakh (held > 1 year)
-LTCG_EXEMPTION = 100000      # ₹1 lakh exemption
-STCG_EQUITY_RATE = 0.15      # 15% (held ≤ 1 year)
+# ── LTCG / STCG tax rates (updated) ──────────────────────────────────────────
+LTCG_EQUITY_RATE = 0.125     # 12.5% on gains above ₹1,25,000 (held >= 365 days)
+LTCG_EXEMPTION   = 125000    # ₹1,25,000 annual exemption
+STCG_EQUITY_RATE = 0.20      # 20% (held < 365 days)
+SLAB_RATE        = 0.30      # assumed peak slab rate for debt / bonds
+LTCG_BOND_RATE   = 0.125     # 12.5% for listed bonds held >= 365 days
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
@@ -789,32 +791,66 @@ async def sip_calculator(req: SIPRequest):
 async def tax_calculator(req: TaxRequest):
     """
     Indian capital gains tax calculator (LTCG / STCG).
-    Equity: STCG 15% (≤1 yr) | LTCG 10% on gains > ₹1 lakh (>1 yr)
-    Debt: taxed at income slab rate (assumed 30% for estimate)
+    Equity:           STCG 20% (<365 days) | LTCG 12.5% on gains above ₹1,25,000 (>=365 days)
+    Debt Mutual Fund: Always taxed at slab rate (30% estimate), regardless of holding period
+    Listed Bond:      STCG at slab rate (<365 days) | LTCG 12.5% (>=365 days)
+    Gold:             STCG at slab rate (<365 days)  | LTCG 12.5% (>=365 days)
     """
     total_buy = req.buy_price * req.quantity
     total_sell = req.sell_price * req.quantity
     gain = total_sell - total_buy
-    holding_months = req.holding_days / 30
 
-    if req.asset_type.lower() == "equity":
-        is_ltcg = req.holding_days > 365
-        if is_ltcg:
+    # Accurate months: 1 calendar year = 365 days = exactly 12 months
+    holding_months = round(req.holding_days * 12 / 365, 1)
+
+    # LTCG threshold: 365 calendar days (accounts for standard year; leap-year
+    # boundary is handled by the user supplying actual holding_days).
+    is_ltcg_year = req.holding_days >= 365
+
+    asset = req.asset_type.lower()
+
+    if asset == "equity":
+        if is_ltcg_year:
             taxable_gain = max(0, gain - LTCG_EXEMPTION)
             tax = taxable_gain * LTCG_EQUITY_RATE
             txn_type = "LTCG"
-            rate_applied = f"{LTCG_EQUITY_RATE*100}% on gains above ₹{LTCG_EXEMPTION:,}"
+            rate_applied = f"12.5% on gains above ₹{LTCG_EXEMPTION:,}"
         else:
-            taxable_gain = gain if gain > 0 else 0
+            taxable_gain = max(0, gain)
             tax = taxable_gain * STCG_EQUITY_RATE
             txn_type = "STCG"
-            rate_applied = f"{STCG_EQUITY_RATE*100}%"
+            rate_applied = "20%"
+
+    elif asset == "debt_mf":
+        # Debt Mutual Funds: always taxed at slab rate, no LTCG benefit
+        taxable_gain = max(0, gain)
+        tax = taxable_gain * SLAB_RATE
+        txn_type = "STCG (Slab)"
+        rate_applied = "30% (income tax slab rate) — no LTCG benefit for Debt MF"
+
+    elif asset == "debt_bond":
+        # Listed Bonds: LTCG 12.5% if >= 365 days, else slab rate
+        taxable_gain = max(0, gain)
+        if is_ltcg_year:
+            tax = taxable_gain * LTCG_BOND_RATE
+            txn_type = "LTCG"
+            rate_applied = "12.5%"
+        else:
+            tax = taxable_gain * SLAB_RATE
+            txn_type = "STCG (Slab)"
+            rate_applied = "30% (income tax slab rate)"
+
     else:
-        is_ltcg = req.holding_days > 1095
-        taxable_gain = gain if gain > 0 else 0
-        tax = taxable_gain * 0.20 if is_ltcg else taxable_gain * 0.30
-        txn_type = "LTCG" if is_ltcg else "STCG"
-        rate_applied = "20% with indexation" if is_ltcg else "30% (as per slab)"
+        # Gold / Other: slab rate short-term, 12.5% long-term
+        taxable_gain = max(0, gain)
+        if is_ltcg_year:
+            tax = taxable_gain * LTCG_BOND_RATE
+            txn_type = "LTCG"
+            rate_applied = "12.5%"
+        else:
+            tax = taxable_gain * SLAB_RATE
+            txn_type = "STCG (Slab)"
+            rate_applied = "30% (income tax slab rate)"
 
     return {
         "asset_type": req.asset_type,
@@ -822,7 +858,7 @@ async def tax_calculator(req: TaxRequest):
         "sell_price": req.sell_price,
         "quantity": req.quantity,
         "holding_days": req.holding_days,
-        "holding_months": round(holding_months, 1),
+        "holding_months": holding_months,
         "total_buy_value": round(total_buy, 2),
         "total_sell_value": round(total_sell, 2),
         "total_gain_loss": round(gain, 2),

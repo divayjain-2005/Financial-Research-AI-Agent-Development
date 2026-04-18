@@ -142,8 +142,9 @@ function TaxCalc() {
         <div>
           <label className="label">Asset Type</label>
           <select className="input" value={form.asset_type} onChange={f("asset_type")}>
-            <option value="equity">Equity (Stocks / MF)</option>
-            <option value="debt">Debt / Bonds</option>
+            <option value="equity">Equity (Stocks / Equity MF)</option>
+            <option value="debt_mf">Debt Mutual Fund</option>
+            <option value="debt_bond">Listed Bond</option>
             <option value="gold">Gold</option>
           </select>
         </div>
