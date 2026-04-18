@@ -75,7 +75,7 @@ export default function Stocks() {
       <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
         <input
           className="input"
-          placeholder="e.g. RELIANCE NSE  or  TCS NSE  or  RELIANCE.NS"
+          placeholder="e.g. RELIANCE NSE  or  TCS NSE  or  HDFCBANK BSE"
           value={symbol}
           onChange={e => setSymbol(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === "Enter" && load()}
