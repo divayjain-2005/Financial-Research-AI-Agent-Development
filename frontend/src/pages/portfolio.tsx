@@ -5,6 +5,19 @@ import { api } from "@/utils/api";
 function fmt(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
 function pctColor(n: any) { return Number(n) >= 0 ? "var(--green)" : "var(--red)"; }
 
+function parseSymbol(raw: string): string {
+  const parts = raw.trim().toUpperCase().split(/\s+/);
+  if (parts.length >= 2) {
+    const ex = parts[parts.length - 1];
+    const ticker = parts.slice(0, -1).join("");
+    if (ex === "NSE") return `${ticker}.NS`;
+    if (ex === "BSE") return `${ticker}.BO`;
+  }
+  const ticker = parts[0];
+  if (ticker.endsWith(".NS") || ticker.endsWith(".BO")) return ticker;
+  return `${ticker}.NS`;
+}
+
 function fmtDate(iso: string) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
@@ -87,9 +100,16 @@ export default function Portfolio() {
   async function addHolding(e: React.FormEvent) {
     e.preventDefault();
     setAdding(true); setMsg("");
+    const apiSym = parseSymbol(form.symbol);
     try {
+      const quote = await api.quote(apiSym).catch(() => null);
+      if (!quote || !quote.current_price) {
+        setMsg(`❌ "${form.symbol.trim().toUpperCase()}" is not a valid stock symbol. Please check and try again.`);
+        setAdding(false);
+        return;
+      }
       await api.portfolioAdd({
-        symbol: form.symbol.trim().toUpperCase(),
+        symbol: apiSym,
         quantity: Number(form.quantity),
         buy_price: Number(form.buy_price),
         buy_date: form.buy_date,
