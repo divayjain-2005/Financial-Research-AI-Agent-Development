@@ -40,6 +40,7 @@ export const api = {
   portfolioGet: () => req("/api/v1/portfolio"),
   portfolioAdd: (item: { symbol: string; quantity: number; buy_price: number; buy_date: string }) =>
     req("/api/v1/portfolio/add", "POST", item),
+  portfolioRemove: (id: number) => req(`/api/v1/portfolio/${id}`, "DELETE"),
   transactions: () => req("/api/v1/portfolio/transactions"),
 
   // Calculators (Week 5-6)

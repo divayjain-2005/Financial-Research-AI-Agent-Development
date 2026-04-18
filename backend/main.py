@@ -734,6 +734,16 @@ async def get_transactions():
         conn.close()
     return {"transactions": [dict(r) for r in rows]}
 
+@app.delete("/api/v1/portfolio/{item_id}")
+async def remove_from_portfolio(item_id: int):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM portfolio WHERE id = ?", (item_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "removed", "id": item_id}
+
 
 # --- SIP Calculator (Week 5-6) -----------------------------------------------
 @app.post("/api/v1/calculators/sip")
