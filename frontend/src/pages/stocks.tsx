@@ -11,6 +11,12 @@ function pctColor(n: any) { return n == null ? "var(--text-2)" : Number(n) >= 0 
 
 const POPULAR = ["RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","ICICIBANK.NS","WIPRO.NS","SBIN.NS","MARUTI.NS","SUNPHARMA.NS","TATAMOTORS.NS"];
 
+function toFriendly(sym: string): string {
+  if (sym.endsWith(".NS")) return `${sym.slice(0, -3)} NSE`;
+  if (sym.endsWith(".BO") || sym.endsWith(".O")) return `${sym.slice(0, sym.lastIndexOf("."))} BSE`;
+  return sym;
+}
+
 export default function Stocks() {
   const [symbol, setSymbol] = useState("");
   const [quote, setQuote] = useState<any>(null);
@@ -44,7 +50,7 @@ export default function Stocks() {
     const raw = sym || symbol;
     const s = parseStockSym(raw);
     if (!s) return;
-    setSymbol(s);
+    setSymbol(toFriendly(s));
     setLoading(true);
     setError("");
     setQuote(null); setAnalysis(null);
@@ -93,8 +99,8 @@ export default function Stocks() {
       {/* Quick picks */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
         {POPULAR.map(s => (
-          <button key={s} className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: "0.75rem" }} onClick={() => load(s)}>
-            {s.split(".")[0]}
+          <button key={s} className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: "0.75rem" }} onClick={() => setSymbol(toFriendly(s))}>
+            {toFriendly(s)}
           </button>
         ))}
       </div>
