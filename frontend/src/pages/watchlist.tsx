@@ -5,11 +5,24 @@ import { api } from "@/utils/api";
 function fmt(n: any) { return n == null ? "—" : Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 }); }
 function pctColor(n: any) { return Number(n) >= 0 ? "var(--green)" : "var(--red)"; }
 
+function parseSymbol(raw: string): { apiSym: string; exchange: string } {
+  const parts = raw.trim().toUpperCase().split(/\s+/);
+  if (parts.length >= 2) {
+    const ex = parts[parts.length - 1];
+    const ticker = parts.slice(0, -1).join("");
+    if (ex === "NSE") return { apiSym: `${ticker}.NS`, exchange: "NSE" };
+    if (ex === "BSE") return { apiSym: `${ticker}.BO`, exchange: "BSE" };
+  }
+  const ticker = parts[0];
+  if (ticker.endsWith(".NS")) return { apiSym: ticker, exchange: "NSE" };
+  if (ticker.endsWith(".BO")) return { apiSym: ticker, exchange: "BSE" };
+  return { apiSym: `${ticker}.NS`, exchange: "NSE" };
+}
+
 export default function Watchlist() {
   const [list, setList] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<Record<string, any>>({});
   const [symbol, setSymbol] = useState("");
-  const [exchange, setExchange] = useState("NSE");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState("");
@@ -19,7 +32,6 @@ export default function Watchlist() {
     try {
       const wl = await api.watchlistGet();
       setList(wl.watchlist || []);
-      // Fetch live quotes
       const symbols = (wl.watchlist || []).map((w: any) => w.symbol);
       const results = await Promise.all(symbols.map((s: string) => api.quote(s).catch(() => null)));
       const map: Record<string, any> = {};
@@ -33,12 +45,19 @@ export default function Watchlist() {
 
   async function addSymbol(e: React.FormEvent) {
     e.preventDefault();
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) return;
+    const raw = symbol.trim();
+    if (!raw) return;
+    const { apiSym, exchange } = parseSymbol(raw);
     setAdding(true); setMsg("");
     try {
-      await api.watchlistAdd(sym, exchange);
-      setMsg(`✅ ${sym} added to watchlist`);
+      const quote = await api.quote(apiSym).catch(() => null);
+      if (!quote || !quote.current_price) {
+        setMsg(`❌ "${raw}" is not a valid stock symbol. Please check and try again.`);
+        setAdding(false);
+        return;
+      }
+      await api.watchlistAdd(apiSym, exchange);
+      setMsg(`✅ ${apiSym.split(".")[0]} added to watchlist`);
       setSymbol("");
       await load();
     } catch (e: any) { setMsg(`❌ ${e.message}`); }
@@ -54,20 +73,15 @@ export default function Watchlist() {
 
   return (
     <Layout title="Watchlist">
-      {/* Add form */}
       <form onSubmit={addSymbol} style={{ display:"flex", gap:10, marginBottom:20, flexWrap:"wrap" }}>
         <input
           className="input"
           value={symbol}
           onChange={e => setSymbol(e.target.value.toUpperCase())}
-          placeholder="Stock symbol e.g. RELIANCE.NS"
-          style={{ maxWidth:280 }}
+          placeholder="e.g. RELIANCE NSE  or  TCS BSE"
+          style={{ maxWidth:300 }}
           required
         />
-        <select className="input" value={exchange} onChange={e => setExchange(e.target.value)} style={{ width:90 }}>
-          <option>NSE</option>
-          <option>BSE</option>
-        </select>
         <button className="btn btn-gold" type="submit" disabled={adding}>
           {adding ? <span className="spinner" /> : "+ Add"}
         </button>
