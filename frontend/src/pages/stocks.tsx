@@ -19,6 +19,7 @@ function toFriendly(sym: string): string {
 
 export default function Stocks() {
   const [symbol, setSymbol] = useState("");
+  const [rawSymbol, setRawSymbol] = useState(""); // yfinance format e.g. HDFCBANK.NS
   const [quote, setQuote] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [period, setPeriod] = useState("3mo");
@@ -50,6 +51,7 @@ export default function Stocks() {
     const raw = sym || symbol;
     const s = parseStockSym(raw);
     if (!s) return;
+    setRawSymbol(s);
     setSymbol(toFriendly(s));
     setLoading(true);
     setError("");
@@ -212,19 +214,12 @@ export default function Stocks() {
 
           {/* Fundamentals tab */}
           {tab === "fundamentals" && (
-            <FundamentalsTab symbol={symbol} />
+            <FundamentalsTab symbol={rawSymbol} />
           )}
 
           {/* Chart tab */}
           {tab === "chart" && (
             <div ref={chartAnchorRef} style={{ marginTop: 4 }}>
-              <div style={{
-                marginBottom: 8, padding: "7px 14px", background: "#0f2a3a",
-                border: "1px solid #1d4a5a", borderRadius: 8,
-                fontSize: "0.75rem", color: "#67c2e0",
-              }}>
-                ℹ️ NSE/BSE charts may show a TradingView login prompt — click the <strong>✕</strong> on that popup to dismiss it and the chart will display.
-              </div>
               <TradingViewChart
                 key={symbol}
                 symbol={symbol}

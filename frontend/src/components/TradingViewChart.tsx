@@ -10,8 +10,12 @@ interface TradingViewChartProps {
 export function toTVSymbol(sym: string): string {
   if (!sym) return "TVC:GOLD";
   const s = sym.trim().toUpperCase();
+  // Yahoo Finance format
   if (s.endsWith(".NS")) return `NSE:${s.replace(".NS", "")}`;
   if (s.endsWith(".BO")) return `BSE:${s.replace(".BO", "")}`;
+  // Friendly format ("TICKER NSE" / "TICKER BSE")
+  if (s.endsWith(" NSE")) return `NSE:${s.slice(0, -4)}`;
+  if (s.endsWith(" BSE")) return `BSE:${s.slice(0, -4)}`;
   if (s === "^NSEI" || s === "^NIFTY50") return "NSE:NIFTY";
   if (s === "^NSEBANK") return "NSE:BANKNIFTY";
   if (s === "^BSESN")  return "BSE:SENSEX";
