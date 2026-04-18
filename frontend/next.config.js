@@ -1,11 +1,16 @@
 /** @type {import('next').NextConfig} */
+
+const devOrigins = [];
+if (process.env.REPLIT_DEV_DOMAIN) {
+  devOrigins.push(process.env.REPLIT_DEV_DOMAIN);
+}
+if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+  devOrigins.push(`${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+}
+
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    turbopack: {
-      root: __dirname,
-    },
-  },
+  allowedDevOrigins: devOrigins,
   async rewrites() {
     return [
       {
