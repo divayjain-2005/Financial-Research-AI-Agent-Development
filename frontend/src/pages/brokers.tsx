@@ -107,6 +107,16 @@ const BROKERS: BrokerConfig[] = [
     ],
   },
   {
+    name: "Dhan",
+    color: "#00a86b", icon: "D",
+    apiName: "Dhan API",
+    docsUrl: "https://dhanhq.co/docs/",
+    fields: [
+      { key: "client_id",  label: "Client ID",  placeholder: "Dhan client ID",   required: true },
+      { key: "api_key",    label: "Access Token", placeholder: "Dhan access token", required: true },
+    ],
+  },
+  {
     name: "Binance",
     color: "#f0b90b", icon: "B",
     apiName: "Binance API",
