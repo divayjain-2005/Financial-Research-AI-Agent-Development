@@ -69,6 +69,12 @@ export const api = {
     return req(`/api/v1/wellness/financial-score?${qs}`);
   },
 
+  // Brokers
+  brokersGet: () => req("/api/v1/brokers"),
+  brokerAdd: (data: { name: string; account_id?: string; broker_type?: string; notes?: string }) =>
+    req("/api/v1/brokers/add", "POST", data),
+  brokerRemove: (id: number) => req(`/api/v1/brokers/${id}`, "DELETE"),
+
   // Chat (Week 6-8)
   chat: (message: string, context?: string) =>
     req("/api/v1/chat/query", "POST", { message, context }),

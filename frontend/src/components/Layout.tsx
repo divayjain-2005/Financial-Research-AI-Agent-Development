@@ -17,6 +17,7 @@ const NAV = [
   { href: "/sectors",             icon: "🏭", label: "Sectors" },
   { href: "/calculators",         icon: "🧮", label: "Calculators" },
   { href: "/wellness",            icon: "💯", label: "Wellness" },
+  { href: "/brokers",             icon: "🏢", label: "My Brokers" },
   { href: "/chat",                icon: "🤖", label: "AI Assistant" },
 ];
 

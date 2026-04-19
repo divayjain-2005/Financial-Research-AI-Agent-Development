@@ -88,6 +88,14 @@ def init_db():
             txn_date TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS brokers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            account_id TEXT DEFAULT '',
+            broker_type TEXT DEFAULT 'discount',
+            notes TEXT DEFAULT '',
+            added_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
     conn.close()
@@ -386,6 +394,12 @@ class TaxRequest(BaseModel):
 class WatchlistItem(BaseModel):
     symbol: str
     exchange: str = "NSE"
+
+class BrokerAccount(BaseModel):
+    name: str
+    account_id: Optional[str] = ""
+    broker_type: str = "discount"   # "discount" | "full_service"
+    notes: Optional[str] = ""
 
 class PortfolioItem(BaseModel):
     symbol: str
@@ -745,6 +759,39 @@ async def remove_from_portfolio(item_id: int):
     finally:
         conn.close()
     return {"status": "removed", "id": item_id}
+
+
+# --- Brokers -------------------------------------------------------------------
+@app.get("/api/v1/brokers")
+async def get_brokers():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM brokers ORDER BY added_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/v1/brokers/add")
+async def add_broker(item: BrokerAccount):
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO brokers (name, account_id, broker_type, notes) VALUES (?,?,?,?)",
+            (item.name.strip(), item.account_id or "", item.broker_type, item.notes or ""),
+        )
+        conn.commit()
+        row_id = cur.lastrowid
+    finally:
+        conn.close()
+    return {"status": "added", "id": row_id}
+
+@app.delete("/api/v1/brokers/{broker_id}")
+async def remove_broker(broker_id: int):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM brokers WHERE id = ?", (broker_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "removed", "id": broker_id}
 
 
 # --- SIP Calculator (Week 5-6) -----------------------------------------------
