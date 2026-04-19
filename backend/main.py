@@ -90,14 +90,33 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS brokers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            account_id TEXT DEFAULT '',
-            broker_type TEXT DEFAULT 'discount',
-            notes TEXT DEFAULT '',
+            broker TEXT NOT NULL,
+            client_id TEXT DEFAULT '',
+            api_key TEXT DEFAULT '',
+            api_secret TEXT DEFAULT '',
+            totp_secret TEXT DEFAULT '',
+            redirect_url TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1,
             added_at TEXT DEFAULT (datetime('now'))
         );
     """)
     conn.commit()
+    # Migrate old schema if needed (add new columns silently)
+    migrations = [
+        "ALTER TABLE brokers ADD COLUMN broker TEXT",
+        "ALTER TABLE brokers ADD COLUMN client_id TEXT DEFAULT ''",
+        "ALTER TABLE brokers ADD COLUMN api_key TEXT DEFAULT ''",
+        "ALTER TABLE brokers ADD COLUMN api_secret TEXT DEFAULT ''",
+        "ALTER TABLE brokers ADD COLUMN totp_secret TEXT DEFAULT ''",
+        "ALTER TABLE brokers ADD COLUMN redirect_url TEXT DEFAULT ''",
+        "ALTER TABLE brokers ADD COLUMN is_active INTEGER DEFAULT 1",
+    ]
+    for m in migrations:
+        try:
+            conn.execute(m)
+            conn.commit()
+        except Exception:
+            pass
     conn.close()
 
 init_db()
@@ -396,10 +415,12 @@ class WatchlistItem(BaseModel):
     exchange: str = "NSE"
 
 class BrokerAccount(BaseModel):
-    name: str
-    account_id: Optional[str] = ""
-    broker_type: str = "discount"   # "discount" | "full_service"
-    notes: Optional[str] = ""
+    broker: str
+    client_id: Optional[str] = ""
+    api_key: Optional[str] = ""
+    api_secret: Optional[str] = ""
+    totp_secret: Optional[str] = ""
+    redirect_url: Optional[str] = ""
 
 class PortfolioItem(BaseModel):
     symbol: str
@@ -767,21 +788,32 @@ async def get_brokers():
     conn = get_db()
     rows = conn.execute("SELECT * FROM brokers ORDER BY added_at DESC").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Mask secrets before sending to frontend
+        if d.get("api_secret"):
+            d["api_secret"] = "••••••••"
+        if d.get("totp_secret"):
+            d["totp_secret"] = "••••••••"
+        result.append(d)
+    return result
 
 @app.post("/api/v1/brokers/add")
 async def add_broker(item: BrokerAccount):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO brokers (name, account_id, broker_type, notes) VALUES (?,?,?,?)",
-            (item.name.strip(), item.account_id or "", item.broker_type, item.notes or ""),
+            """INSERT INTO brokers (broker, client_id, api_key, api_secret, totp_secret, redirect_url)
+               VALUES (?,?,?,?,?,?)""",
+            (item.broker.strip(), item.client_id or "", item.api_key or "",
+             item.api_secret or "", item.totp_secret or "", item.redirect_url or ""),
         )
         conn.commit()
         row_id = cur.lastrowid
     finally:
         conn.close()
-    return {"status": "added", "id": row_id}
+    return {"status": "connected", "id": row_id}
 
 @app.delete("/api/v1/brokers/{broker_id}")
 async def remove_broker(broker_id: int):
@@ -791,7 +823,7 @@ async def remove_broker(broker_id: int):
         conn.commit()
     finally:
         conn.close()
-    return {"status": "removed", "id": broker_id}
+    return {"status": "disconnected", "id": broker_id}
 
 
 # --- SIP Calculator (Week 5-6) -----------------------------------------------

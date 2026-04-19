@@ -71,7 +71,7 @@ export const api = {
 
   // Brokers
   brokersGet: () => req("/api/v1/brokers"),
-  brokerAdd: (data: { name: string; account_id?: string; broker_type?: string; notes?: string }) =>
+  brokerAdd: (data: { broker: string; client_id?: string; api_key?: string; api_secret?: string; totp_secret?: string; redirect_url?: string }) =>
     req("/api/v1/brokers/add", "POST", data),
   brokerRemove: (id: number) => req(`/api/v1/brokers/${id}`, "DELETE"),
 
