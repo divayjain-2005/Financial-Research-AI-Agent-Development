@@ -267,7 +267,7 @@ function FundamentalsTab({ symbol }: { symbol: string }) {
           <div className="section-title">{sec.title}</div>
           {Object.entries(sec.data || {}).map(([k,v]: any) => (
             <div key={k} style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:"0.85rem" }}>
-              <span style={{color:"var(--text-3)"}}>{k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</span>
+              <span style={{color:"var(--text-3)"}}>{k.replace(/_/g," ").replace(/\b\w/g,(c: string)=>c.toUpperCase())}</span>
               <span style={{color:"var(--text-1)",fontWeight:500}}>{v == null ? "—" : typeof v === "number" ? v.toLocaleString("en-IN",{maximumFractionDigits:3}) : String(v)}</span>
             </div>
           ))}
