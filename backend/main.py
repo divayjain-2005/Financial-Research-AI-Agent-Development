@@ -31,10 +31,18 @@ app = FastAPI(
     ),
 )
 
+_origins_env = os.getenv("ALLOWED_ORIGINS", "*").strip()
+if _origins_env == "*" or not _origins_env:
+    _allow_origins = ["*"]
+    _allow_credentials = False
+else:
+    _allow_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
+    _allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allow_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1939,4 +1947,5 @@ async def economic_dashboard():
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    _port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=_port)
