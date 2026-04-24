@@ -49,7 +49,7 @@ git push -u origin main
    - `NEXT_PUBLIC_API_URL` = the Railway URL from step 2.6 (e.g. `https://your-backend.up.railway.app`)
 4. Hit **Deploy**. Vercel will build and give you `https://your-app.vercel.app`.
 
-> The `vercel.json` at the repo root is a fallback in case you import the repo without setting the root directory — it points the build at `frontend/`.
+> No `vercel.json` is needed. Setting **Root Directory = `frontend`** in the Vercel UI tells Vercel where the Next.js app lives, and it auto-detects everything else (install command, build command, output dir, framework). **Do not** add a root-level `vercel.json` with `cd frontend && …` commands — Vercel will already be inside `frontend/` and the `cd` will fail with `exit 1`.
 
 ---
 
