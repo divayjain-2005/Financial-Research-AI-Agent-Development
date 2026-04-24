@@ -1,4 +1,4 @@
-const BASE = "/backend";
+const BASE = process.env.NEXT_PUBLIC_RAILWAY_URL || "";
 
 async function req<T = any>(path: string, method = "GET", body?: any): Promise<T> {
   const opts: RequestInit = { method, headers: { "Content-Type": "application/json" } };
