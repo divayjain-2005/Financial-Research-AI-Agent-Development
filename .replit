@@ -27,13 +27,13 @@ args = "Start application"
 name = "Backend API"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd backend && python main.py"
-waitForPort = 8000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && uv run python main.py"
+waitForPort = 8000
 
 [[workflows.workflow]]
 name = "Start application"
@@ -53,4 +53,4 @@ externalPort = 5000
 
 [[ports]]
 localPort = 8000
-externalPort = 80
+externalPort = 8000
