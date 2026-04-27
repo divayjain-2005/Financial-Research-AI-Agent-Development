@@ -585,10 +585,11 @@ async def get_stock_returns(symbol: str):
 
     # Approximate trading-day offsets
     HORIZONS = [
-        ("1d", 1),
+        ("1D", 1),
         ("1M", 22),
-        ("1y", 252),
-        ("5y", len(closes) - 1),
+        ("3M", 66),
+        ("1Y", 252),
+        ("5Y", len(closes) - 1),
     ]
     out = []
     for label, offset in HORIZONS:
