@@ -7,11 +7,37 @@ interface User {
   profile_image?: string;
 }
 
+// Replit Auth headers (X-Replit-User-*) are only injected on production
+// `.replit.app` URLs. In the development preview (`.replit.dev` with a port,
+// or localhost) the proxy never sets them, so the login wall can never pass.
+// We therefore skip the wall in development and only enforce it in production.
+function isDevHost(): boolean {
+  if (typeof window === "undefined") return true;
+  const h = window.location.hostname;
+  return (
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h.endsWith(".replit.dev") ||
+    h.endsWith(".repl.co") ||
+    h.endsWith(".vercel.app")
+  );
+}
+
+const DEV_USER: User = {
+  id: "dev",
+  name: "Developer",
+};
+
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
 
   async function checkAuth() {
+    if (isDevHost()) {
+      setUser(DEV_USER);
+      setChecking(false);
+      return;
+    }
     try {
       const u = await api.me();
       setUser(u);
