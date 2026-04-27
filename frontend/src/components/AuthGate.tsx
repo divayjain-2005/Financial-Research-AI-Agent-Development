@@ -87,10 +87,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             </div>
 
             <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text-1)", marginBottom: 8 }}>
-              Welcome back
+              Welcome
             </div>
             <div style={{ fontSize: "0.85rem", color: "var(--text-3)", marginBottom: 28, lineHeight: 1.6 }}>
-              Sign in to access live Indian market data, your watchlist, portfolio tracking, and the AI assistant.
+              Sign in with any Gmail / Google account to access live Indian market data, your watchlist, portfolio tracking, and the AI assistant.
             </div>
 
             <button
