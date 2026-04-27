@@ -478,6 +478,33 @@ async def health():
     return {"status": "healthy", "version": "1.0.0", "timestamp": datetime.utcnow().isoformat()}
 
 
+# ── Auth (Replit Auth — read user from proxy headers) ─────────────────────────
+from fastapi import Request
+
+@app.get("/api/v1/auth/me")
+async def auth_me(request: Request):
+    """
+    Returns the current logged-in user (via Replit Auth proxy headers).
+    Frontend uses this to gate access. Returns 401 when not authenticated.
+    """
+    user_id = request.headers.get("x-replit-user-id", "")
+    user_name = request.headers.get("x-replit-user-name", "")
+    user_roles = request.headers.get("x-replit-user-roles", "")
+    user_url = request.headers.get("x-replit-user-url", "")
+    user_bio = request.headers.get("x-replit-user-bio", "")
+    user_profile_image = request.headers.get("x-replit-user-profile-image", "")
+    if not user_id or not user_name:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return {
+        "id": user_id,
+        "name": user_name,
+        "roles": [r for r in user_roles.split(",") if r],
+        "url": user_url,
+        "bio": user_bio,
+        "profile_image": user_profile_image,
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  WEEK 1-2 — Stock price chatbot & Indian stock support
 # ══════════════════════════════════════════════════════════════════════════════
@@ -535,6 +562,61 @@ async def get_historical_data(
         "interval": interval,
         "count": len(data["prices"]),
         "data": data["prices"],
+    }
+
+
+@app.get("/api/v1/stocks/returns/{symbol}")
+async def get_stock_returns(symbol: str):
+    """
+    Returns the price change over multiple horizons (1d, 1M, 3M, 1y, 5y).
+    Uses 5y of daily data to compute period-over-period returns.
+    """
+    symbol = _validate_symbol(symbol)
+    data = _fetch_yf(symbol, period="5y", interval="1d")
+    if not data or not data["prices"]:
+        raise HTTPException(
+            status_code=503,
+            detail="Historical data is currently unavailable for this symbol.",
+        )
+    prices = data["prices"]
+    closes = [p["close"] for p in prices]
+    dates = [p["date"] for p in prices]
+    current = closes[-1]
+
+    # Approximate trading-day offsets
+    HORIZONS = [
+        ("1d", 1),
+        ("1M", 22),
+        ("3M", 66),
+        ("1y", 252),
+        ("5y", len(closes) - 1),
+    ]
+    out = []
+    for label, offset in HORIZONS:
+        idx = max(0, len(closes) - 1 - offset)
+        if idx == len(closes) - 1:
+            out.append({"period": label, "available": False})
+            continue
+        ref = closes[idx]
+        change = round(current - ref, 2)
+        change_pct = round((current - ref) / ref * 100, 2) if ref else 0
+        out.append({
+            "period": label,
+            "available": True,
+            "from_date": dates[idx],
+            "from_price": ref,
+            "to_date": dates[-1],
+            "to_price": current,
+            "change": change,
+            "change_percent": change_pct,
+        })
+
+    return {
+        "symbol": symbol,
+        "current_price": current,
+        "currency": data.get("info", {}).get("currency", "INR"),
+        "returns": out,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
 

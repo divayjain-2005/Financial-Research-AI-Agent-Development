@@ -4,7 +4,11 @@ const BASE =
   "";
 
 async function req<T = any>(path: string, method = "GET", body?: any): Promise<T> {
-  const opts: RequestInit = { method, headers: { "Content-Type": "application/json" } };
+  const opts: RequestInit = {
+    method,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(`${BASE}${path}`, opts);
   if (!res.ok) {
@@ -18,6 +22,9 @@ export const api = {
   // Health
   health: () => req("/health"),
 
+  // Auth
+  me: () => req("/api/v1/auth/me"),
+
   // Stocks (Weeks 1-4)
   quote: (symbol: string) => req(`/api/v1/stocks/quote/${encodeURIComponent(symbol)}`),
   historical: (symbol: string, period = "3mo", interval = "1d") =>
@@ -25,6 +32,7 @@ export const api = {
   analyze: (symbol: string) => req(`/api/v1/stocks/analyze/${encodeURIComponent(symbol)}`),
   compare: (symbols: string) => req(`/api/v1/stocks/compare?symbols=${encodeURIComponent(symbols)}`),
   marketStatus: () => req("/api/v1/stocks/market-status"),
+  returns: (symbol: string) => req(`/api/v1/stocks/returns/${encodeURIComponent(symbol)}`),
   sentiment: (text: string) => req("/api/v1/stocks/sentiment", "POST", { text }),
   fundamentals: (symbol: string) => req(`/api/v1/stocks/fundamentals/${encodeURIComponent(symbol)}`),
 

@@ -3,9 +3,13 @@ import Layout from "@/components/Layout";
 import { api } from "@/utils/api";
 
 const INDICES = [
-  { label: "NIFTY 50",   symbol: "^NSEI" },
-  { label: "SENSEX",     symbol: "^BSESN" },
-  { label: "NIFTY BANK", symbol: "^NSEBANK" },
+  { label: "NIFTY 50",       symbol: "^NSEI" },
+  { label: "BANK NIFTY",     symbol: "^NSEBANK" },
+  { label: "SENSEX",         symbol: "^BSESN" },
+  { label: "GIFT NIFTY",     symbol: "GIFTNIFTY" },
+  { label: "MIDCAP NIFTY",   symbol: "^NSEMDCP50" },
+  { label: "FIN NIFTY",      symbol: "^CNXFIN" },
+  { label: "INDIA VIX",      symbol: "^INDIAVIX" },
 ];
 
 const QUICK_STOCKS = ["RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","ICICIBANK.NS","WIPRO.NS"];
@@ -16,7 +20,7 @@ function fmt(n: number | null | undefined) {
 }
 
 function pctColor(n: number | undefined) {
-  if (!n) return "var(--text-2)";
+  if (n == null) return "var(--text-2)";
   return n >= 0 ? "var(--green)" : "var(--red)";
 }
 
@@ -32,6 +36,105 @@ function DataUnavailable() {
   );
 }
 
+function ReturnsModal({
+  index, onClose,
+}: { index: { label: string; symbol: string }; onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    setError(null);
+    api.returns(index.symbol)
+      .then(setData)
+      .catch((e: any) => setError(e?.message || "Unable to load returns."));
+  }, [index.symbol]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 80,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="card"
+        style={{ width: "100%", maxWidth: 520, padding: "22px 24px" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-1)" }}>{index.label}</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--text-3)", marginTop: 2 }}>{index.symbol}</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent", border: "1px solid var(--border)",
+              color: "var(--text-2)", borderRadius: 8, padding: "4px 10px",
+              fontSize: "0.8rem", cursor: "pointer",
+            }}
+          >Close</button>
+        </div>
+
+        {!data && !error && (
+          <div className="loading" style={{ padding: "30px 0", justifyContent: "center", display: "flex" }}>
+            <span className="spinner" style={{ marginRight: 10 }} />Loading returns…
+          </div>
+        )}
+        {error && <DataUnavailable />}
+
+        {data && (
+          <>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-3)", marginTop: 14 }}>Current price</div>
+            <div style={{ fontSize: "1.7rem", fontWeight: 700, color: "var(--text-1)" }}>
+              {fmt(data.current_price)}
+            </div>
+
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+              {data.returns?.map((r: any) => (
+                <div
+                  key={r.period}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 14px", borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-base)",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "var(--text-1)", fontSize: "0.9rem", width: 60 }}>
+                    {r.period}
+                  </div>
+                  {r.available ? (
+                    <>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-3)", flex: 1, textAlign: "center" }}>
+                        {r.from_date} → {r.to_date}
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: 700, color: pctColor(r.change_percent), fontSize: "0.95rem" }}>
+                          {r.change_percent >= 0 ? "+" : ""}{r.change_percent.toFixed(2)}%
+                        </div>
+                        <div style={{ fontSize: "0.7rem", color: pctColor(r.change) }}>
+                          {r.change >= 0 ? "+" : ""}{fmt(r.change)}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, textAlign: "right", fontSize: "0.78rem", color: "var(--text-3)" }}>
+                      Not enough history
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [indices, setIndices] = useState<any[]>([]);
   const [topStocks, setTopStocks] = useState<any[]>([]);
@@ -39,6 +142,7 @@ export default function Dashboard() {
   const [monitoring, setMonitoring] = useState<any>(null);
   const [dataAvailable, setDataAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openIdx, setOpenIdx] = useState<{ label: string; symbol: string } | null>(null);
 
   useEffect(() => {
     api.marketStatus().then(setMarketStatus).catch(() => {});
@@ -76,21 +180,38 @@ export default function Dashboard() {
       )}
 
       {/* Index cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 22 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+        gap: 12, marginBottom: 22,
+      }}>
         {INDICES.map((idx) => {
           const d = indices.find(i => i.label === idx.label)?.data;
+          const unavailable = !loading && !d;
           return (
-            <div key={idx.label} className="card" style={{ padding: "18px 20px" }}>
+            <div
+              key={idx.label}
+              className="card-hover"
+              onClick={() => setOpenIdx(idx)}
+              style={{
+                padding: "16px 18px", cursor: "pointer", position: "relative",
+                opacity: unavailable ? 0.65 : 1,
+              }}
+            >
               <div className="metric-label">{idx.label}</div>
-              <div className="metric-val" style={{ marginTop: 6 }}>
+              <div className="metric-val" style={{ marginTop: 6, fontSize: "1.5rem" }}>
                 {loading ? <span className="spinner" /> : d ? fmt(d.current_price) : "—"}
               </div>
               {d && (
-                <div style={{ fontSize: "0.82rem", marginTop: 4, color: pctColor(d.change_percent) }}>
+                <div style={{ fontSize: "0.78rem", marginTop: 4, color: pctColor(d.change_percent) }}>
                   {d.change >= 0 ? "▲" : "▼"} {fmt(Math.abs(d.change))} ({d.change_percent > 0 ? "+" : ""}{d.change_percent?.toFixed(2)}%)
                 </div>
               )}
-              {!loading && !d && <div style={{ fontSize: "0.78rem", color: "var(--text-3)", marginTop: 4 }}>Unavailable</div>}
+              {unavailable && <div style={{ fontSize: "0.72rem", color: "var(--text-3)", marginTop: 4 }}>Unavailable</div>}
+              <div style={{
+                position: "absolute", top: 10, right: 12,
+                fontSize: "0.65rem", color: "var(--text-3)",
+              }}>↗</div>
             </div>
           );
         })}
@@ -166,6 +287,8 @@ export default function Dashboard() {
           </a>
         ))}
       </div>
+
+      {openIdx && <ReturnsModal index={openIdx} onClose={() => setOpenIdx(null)} />}
     </Layout>
   );
 }

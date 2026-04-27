@@ -1,4 +1,4 @@
-import React, { ReactNode, useState, useEffect } from "react";
+import React, { ReactNode, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { api } from "@/utils/api";
@@ -25,10 +25,30 @@ export default function Layout({ children, title }: { children: ReactNode; title
   const router = useRouter();
   const [marketStatus, setMarketStatus] = useState<any>(null);
   const [sideOpen, setSideOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.marketStatus().then(setMarketStatus).catch(() => {});
+    api.me().then(setUser).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function handleLogout() {
+    // Clear Replit Auth cookie and reload to land on the login screen
+    document.cookie = "REPL_AUTH=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    window.location.href = "/";
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg-deep)" }}>
@@ -120,6 +140,57 @@ export default function Layout({ children, title }: { children: ReactNode; title
           {marketStatus && (
             <div style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
               {marketStatus.current_ist}
+            </div>
+          )}
+
+          {user && (
+            <div ref={menuRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "transparent", border: "1px solid var(--border)",
+                  borderRadius: 999, padding: "4px 10px 4px 4px", cursor: "pointer",
+                }}
+              >
+                <span style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: user.profile_image ? `center / cover url(${user.profile_image})` : "#1e3a5f",
+                  border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#93c5fd", fontWeight: 700, fontSize: "0.75rem",
+                }}>
+                  {!user.profile_image && (user.name?.[0]?.toUpperCase() || "U")}
+                </span>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-2)", fontWeight: 500 }}>
+                  {user.name}
+                </span>
+              </button>
+              {menuOpen && (
+                <div style={{
+                  position: "absolute", right: 0, top: "calc(100% + 6px)",
+                  background: "var(--bg-base)", border: "1px solid var(--border)",
+                  borderRadius: 10, minWidth: 180, padding: 6, zIndex: 50,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                }}>
+                  <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-1)", fontWeight: 600 }}>{user.name}</div>
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-3)", marginTop: 2 }}>Signed in</div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    style={{
+                      width: "100%", textAlign: "left",
+                      background: "transparent", border: "none", color: "var(--text-2)",
+                      padding: "8px 12px", fontSize: "0.8rem", borderRadius: 6, cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </header>
