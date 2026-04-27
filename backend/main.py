@@ -587,7 +587,6 @@ async def get_stock_returns(symbol: str):
     HORIZONS = [
         ("1d", 1),
         ("1M", 22),
-        ("3M", 66),
         ("1y", 252),
         ("5y", len(closes) - 1),
     ]
