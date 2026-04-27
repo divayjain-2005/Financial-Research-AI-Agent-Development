@@ -55,11 +55,28 @@ Frontend proxies all `/backend/*` requests to the Python backend via Next.js rew
 - Input validation on all stock symbols
 - SQLite persistence at `backend/finance.db`
 
+## Authentication
+
+- Login is gated by **Replit Auth** (Google / Replit account) via the proxy headers `X-Replit-User-*`.
+- `/api/v1/auth/me` returns the current user; the frontend `AuthGate` shows a "Sign in with Google" screen until the user is authenticated.
+- Sign-out clears the `REPL_AUTH` cookie and reloads.
+
 ## Environment Variables (optional)
 
 | Variable | Purpose |
 |----------|---------|
-| `ANTHROPIC_API_KEY` | Enables Claude AI chat (claude-3-5-sonnet) |
+| `CLAUDE_API_KEY` | Enables Claude AI chat (claude-3-5-sonnet). Friendly error shown on missing credits / bad key. |
+
+## Production deployment
+
+- Deployment target: **VM**.
+- `start_production.sh` boots the FastAPI backend on `:8000`, waits for `/health` to respond, then starts Next.js on `:5000`. This avoids the 404s caused by the frontend serving requests before the backend was ready.
+- Build command: `uv sync && cd frontend && npm ci && npm run build`.
+
+## Indices Dashboard
+
+Dashboard shows 7 indices — NIFTY 50, BANK NIFTY, SENSEX, GIFT NIFTY, MIDCAP NIFTY, FIN NIFTY, INDIA VIX.
+Each card is clickable and opens a returns modal showing 1d / 1M / 3M / 1y / 5y returns. Powered by a new endpoint `GET /api/v1/stocks/returns/{symbol}` that fetches 5y of daily history and computes period-over-period returns.
 
 ## Database
 

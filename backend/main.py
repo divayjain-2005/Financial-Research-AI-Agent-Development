@@ -1133,9 +1133,40 @@ async def chat_query(req: ChatRequest):
                 "timestamp": datetime.utcnow().isoformat(),
             }
         except Exception as e:
-            logger.error(f"Claude error: {e}")
+            err_text = str(e)
+            logger.error(f"Claude error: {err_text}")
+            lower = err_text.lower()
+            if "credit balance" in lower or "billing" in lower or "quota" in lower or "insufficient" in lower:
+                friendly = (
+                    "**Anthropic account has no credits.**\n\n"
+                    "Your CLAUDE_API_KEY is valid, but the linked Anthropic account is out of credits. "
+                    "Top up at https://console.anthropic.com/settings/billing and try again.\n\n"
+                    "Falling back to a quick rule-based answer below."
+                )
+            elif "401" in lower or "unauthorized" in lower or "authentication" in lower or "invalid_api_key" in lower:
+                friendly = (
+                    "**Invalid Anthropic API key.**\n\n"
+                    "The CLAUDE_API_KEY secret was rejected by Anthropic. "
+                    "Generate a new key at https://console.anthropic.com/settings/keys and update the secret.\n\n"
+                    "Falling back to a quick rule-based answer below."
+                )
+            elif "rate" in lower and "limit" in lower:
+                friendly = (
+                    "**Anthropic rate-limit hit.**\n\n"
+                    "Please retry in a moment. Falling back to a quick rule-based answer below."
+                )
+            else:
+                friendly = None
 
-    # Rule-based fallback
+            if friendly:
+                # Continue to rule-based fallback below but prepend the friendly error
+                _claude_error_prefix = friendly + "\n\n---\n\n"
+            else:
+                _claude_error_prefix = ""
+
+    # Rule-based fallback (also reached if Claude failed in a known way above)
+    if "_claude_error_prefix" not in dir():
+        _claude_error_prefix = ""
     msg_lower = user_msg.lower()
     if any(k in msg_lower for k in ["sip", "systematic investment"]):
         answer = ("A SIP (Systematic Investment Plan) lets you invest a fixed amount monthly in mutual funds. "
@@ -1159,7 +1190,7 @@ async def chat_query(req: ChatRequest):
                   f"Set CLAUDE_API_KEY for full Claude-powered responses. "
                   f"You asked: \"{user_msg}\"")
     return {
-        "response": answer,
+        "response": _claude_error_prefix + answer,
         "model": "rule-based-fallback",
         "timestamp": datetime.utcnow().isoformat(),
     }
