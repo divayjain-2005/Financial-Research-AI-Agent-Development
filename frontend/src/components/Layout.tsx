@@ -31,7 +31,11 @@ export default function Layout({ children, title }: { children: ReactNode; title
 
   useEffect(() => {
     api.marketStatus().then(setMarketStatus).catch(() => {});
-    api.me().then(setUser).catch(() => {});
+    // Try the real Replit-auth user first; fall back to a synthetic dev user
+    // so the sign-out menu is always visible (dev preview never injects auth headers).
+    api.me()
+      .then(setUser)
+      .catch(() => setUser({ id: "dev", name: "Developer" }));
   }, []);
 
   useEffect(() => {
@@ -45,8 +49,28 @@ export default function Layout({ children, title }: { children: ReactNode; title
   }, []);
 
   function handleLogout() {
-    // Clear Replit Auth cookie and reload to land on the login screen
-    document.cookie = "REPL_AUTH=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    // Clear all Replit Auth cookies (works on the published .replit.app site).
+    // In the dev preview, login is bypassed anyway, so there's nothing to clear —
+    // just notify the user instead of looping back to a wall they can't pass.
+    const host = typeof window !== "undefined" ? window.location.hostname : "";
+    const isDev =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".replit.dev") ||
+      host.endsWith(".repl.co") ||
+      host.endsWith(".vercel.app");
+    if (isDev) {
+      alert(
+        "Sign-out only takes effect on the published .replit.app site.\n" +
+          "The development preview bypasses login so you can keep working."
+      );
+      setMenuOpen(false);
+      return;
+    }
+    // Production sign-out: clear the Replit auth cookies and reload.
+    ["REPL_AUTH", "connect.sid", "replit_auth"].forEach((c) => {
+      document.cookie = `${c}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    });
     window.location.href = "/";
   }
 

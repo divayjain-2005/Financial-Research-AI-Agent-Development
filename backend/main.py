@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 
@@ -118,6 +118,11 @@ def init_db():
         "ALTER TABLE brokers ADD COLUMN totp_secret TEXT DEFAULT ''",
         "ALTER TABLE brokers ADD COLUMN redirect_url TEXT DEFAULT ''",
         "ALTER TABLE brokers ADD COLUMN is_active INTEGER DEFAULT 1",
+        # Per-user scoping (any pre-existing rows are assigned to the dev user)
+        "ALTER TABLE watchlist    ADD COLUMN user_id TEXT NOT NULL DEFAULT 'dev'",
+        "ALTER TABLE portfolio    ADD COLUMN user_id TEXT NOT NULL DEFAULT 'dev'",
+        "ALTER TABLE transactions ADD COLUMN user_id TEXT NOT NULL DEFAULT 'dev'",
+        "ALTER TABLE brokers      ADD COLUMN user_id TEXT NOT NULL DEFAULT 'dev'",
     ]
     for m in migrations:
         try:
@@ -126,6 +131,16 @@ def init_db():
         except Exception:
             pass
     conn.close()
+
+
+# ── Per-user identity ────────────────────────────────────────────────────────
+# Reads the Replit-Auth-injected header on the published `.replit.app` site.
+# In dev (no header present) returns the synthetic 'dev' user so local work
+# isn't blocked. This means each Gmail-signed-in user gets their own data slice
+# in production while the developer sees a private 'dev' workspace locally.
+def current_user_id(request: Request) -> str:
+    uid = request.headers.get("x-replit-user-id", "").strip()
+    return uid or "dev"
 
 init_db()
 
@@ -479,8 +494,6 @@ async def health():
 
 
 # ── Auth (Replit Auth — read user from proxy headers) ─────────────────────────
-from fastapi import Request
-
 @app.get("/api/v1/auth/me")
 async def auth_me(request: Request):
     """
@@ -765,15 +778,21 @@ async def list_sectors():
     return {sector: stocks for sector, stocks in SECTOR_STOCKS.items()}
 
 
-# --- Watchlist (SQLite) -------------------------------------------------------
+# --- Watchlist (SQLite, per user) ---------------------------------------------
 @app.post("/api/v1/watchlist/add")
-async def add_to_watchlist(item: WatchlistItem):
+async def add_to_watchlist(item: WatchlistItem, request: Request):
     item.symbol = _validate_symbol(item.symbol)
+    uid = current_user_id(request)
     conn = get_db()
     try:
+        # One row per (user, symbol) — INSERT OR IGNORE relies on this uniqueness
         conn.execute(
-            "INSERT OR IGNORE INTO watchlist (symbol, exchange) VALUES (?, ?)",
-            (item.symbol, item.exchange.upper()),
+            "DELETE FROM watchlist WHERE user_id = ? AND symbol = ?",
+            (uid, item.symbol),
+        )
+        conn.execute(
+            "INSERT INTO watchlist (symbol, exchange, user_id) VALUES (?, ?, ?)",
+            (item.symbol, item.exchange.upper(), uid),
         )
         conn.commit()
     finally:
@@ -781,39 +800,48 @@ async def add_to_watchlist(item: WatchlistItem):
     return {"status": "added", "symbol": item.symbol, "exchange": item.exchange.upper()}
 
 @app.get("/api/v1/watchlist")
-async def get_watchlist():
+async def get_watchlist(request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        rows = conn.execute("SELECT * FROM watchlist ORDER BY added_at DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM watchlist WHERE user_id = ? ORDER BY added_at DESC",
+            (uid,),
+        ).fetchall()
     finally:
         conn.close()
     return {"watchlist": [dict(r) for r in rows]}
 
 @app.delete("/api/v1/watchlist/{symbol}")
-async def remove_from_watchlist(symbol: str):
+async def remove_from_watchlist(symbol: str, request: Request):
     symbol = _validate_symbol(symbol)
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol,))
+        conn.execute(
+            "DELETE FROM watchlist WHERE user_id = ? AND symbol = ?",
+            (uid, symbol),
+        )
         conn.commit()
     finally:
         conn.close()
     return {"status": "removed", "symbol": symbol}
 
 
-# --- Portfolio Tracking -------------------------------------------------------
+# --- Portfolio Tracking (per user) --------------------------------------------
 @app.post("/api/v1/portfolio/add")
-async def add_to_portfolio(item: PortfolioItem):
+async def add_to_portfolio(item: PortfolioItem, request: Request):
     item.symbol = _validate_symbol(item.symbol)
+    uid = current_user_id(request)
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date) VALUES (?, ?, ?, ?)",
-            (item.symbol, item.quantity, item.buy_price, item.buy_date),
+            "INSERT INTO portfolio (symbol, quantity, buy_price, buy_date, user_id) VALUES (?, ?, ?, ?, ?)",
+            (item.symbol, item.quantity, item.buy_price, item.buy_date, uid),
         )
         conn.execute(
-            "INSERT INTO transactions (symbol, txn_type, quantity, price, txn_date) VALUES (?, 'BUY', ?, ?, ?)",
-            (item.symbol, item.quantity, item.buy_price, item.buy_date),
+            "INSERT INTO transactions (symbol, txn_type, quantity, price, txn_date, user_id) VALUES (?, 'BUY', ?, ?, ?, ?)",
+            (item.symbol, item.quantity, item.buy_price, item.buy_date, uid),
         )
         conn.commit()
     finally:
@@ -821,10 +849,14 @@ async def add_to_portfolio(item: PortfolioItem):
     return {"status": "added", **item.dict()}
 
 @app.get("/api/v1/portfolio")
-async def get_portfolio():
+async def get_portfolio(request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        rows = conn.execute("SELECT * FROM portfolio").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM portfolio WHERE user_id = ?",
+            (uid,),
+        ).fetchall()
     finally:
         conn.close()
     items = [dict(r) for r in rows]
@@ -853,19 +885,27 @@ async def get_portfolio():
     }
 
 @app.get("/api/v1/portfolio/transactions")
-async def get_transactions():
+async def get_transactions(request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        rows = conn.execute("SELECT * FROM transactions ORDER BY txn_date DESC").fetchall()
+        rows = conn.execute(
+            "SELECT * FROM transactions WHERE user_id = ? ORDER BY txn_date DESC",
+            (uid,),
+        ).fetchall()
     finally:
         conn.close()
     return {"transactions": [dict(r) for r in rows]}
 
 @app.delete("/api/v1/portfolio/{item_id}")
-async def remove_from_portfolio(item_id: int):
+async def remove_from_portfolio(item_id: int, request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        conn.execute("DELETE FROM portfolio WHERE id = ?", (item_id,))
+        conn.execute(
+            "DELETE FROM portfolio WHERE id = ? AND user_id = ?",
+            (item_id, uid),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -874,9 +914,13 @@ async def remove_from_portfolio(item_id: int):
 
 # --- Brokers -------------------------------------------------------------------
 @app.get("/api/v1/brokers")
-async def get_brokers():
+async def get_brokers(request: Request):
+    uid = current_user_id(request)
     conn = get_db()
-    rows = conn.execute("SELECT * FROM brokers ORDER BY added_at DESC").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM brokers WHERE user_id = ? ORDER BY added_at DESC",
+        (uid,),
+    ).fetchall()
     conn.close()
     result = []
     for r in rows:
@@ -890,14 +934,15 @@ async def get_brokers():
     return result
 
 @app.post("/api/v1/brokers/add")
-async def add_broker(item: BrokerAccount):
+async def add_broker(item: BrokerAccount, request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
         cur = conn.execute(
-            """INSERT INTO brokers (broker, client_id, api_key, api_secret, totp_secret, redirect_url)
-               VALUES (?,?,?,?,?,?)""",
+            """INSERT INTO brokers (broker, client_id, api_key, api_secret, totp_secret, redirect_url, user_id)
+               VALUES (?,?,?,?,?,?,?)""",
             (item.broker.strip(), item.client_id or "", item.api_key or "",
-             item.api_secret or "", item.totp_secret or "", item.redirect_url or ""),
+             item.api_secret or "", item.totp_secret or "", item.redirect_url or "", uid),
         )
         conn.commit()
         row_id = cur.lastrowid
@@ -906,10 +951,14 @@ async def add_broker(item: BrokerAccount):
     return {"status": "connected", "id": row_id}
 
 @app.delete("/api/v1/brokers/{broker_id}")
-async def remove_broker(broker_id: int):
+async def remove_broker(broker_id: int, request: Request):
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        conn.execute("DELETE FROM brokers WHERE id = ?", (broker_id,))
+        conn.execute(
+            "DELETE FROM brokers WHERE id = ? AND user_id = ?",
+            (broker_id, uid),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -1260,13 +1309,20 @@ async def financial_wellness_score(
 
 
 @app.get("/api/v1/monitoring/summary")
-async def monitoring_summary():
-    """API health, cache stats, and DB summary (Week 7-8 monitoring)."""
+async def monitoring_summary(request: Request):
+    """API health, cache stats, and per-user DB summary (Week 7-8 monitoring)."""
+    uid = current_user_id(request)
     conn = get_db()
     try:
-        watchlist_count = conn.execute("SELECT COUNT(*) FROM watchlist").fetchone()[0]
-        portfolio_count = conn.execute("SELECT COUNT(*) FROM portfolio").fetchone()[0]
-        txn_count = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        watchlist_count = conn.execute(
+            "SELECT COUNT(*) FROM watchlist WHERE user_id = ?", (uid,)
+        ).fetchone()[0]
+        portfolio_count = conn.execute(
+            "SELECT COUNT(*) FROM portfolio WHERE user_id = ?", (uid,)
+        ).fetchone()[0]
+        txn_count = conn.execute(
+            "SELECT COUNT(*) FROM transactions WHERE user_id = ?", (uid,)
+        ).fetchone()[0]
     finally:
         conn.close()
 
