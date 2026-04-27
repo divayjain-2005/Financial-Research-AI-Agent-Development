@@ -31,8 +31,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     const w = 360, h = 560;
     const left = window.screen.width / 2 - w / 2;
     const top = window.screen.height / 2 - h / 2;
+    // Replit Auth requires the domain (no port) of the page that initiated login.
+    const domain = window.location.hostname;
     const popup = window.open(
-      `https://replit.com/auth_with_repl_site?domain=${window.location.host}`,
+      `https://replit.com/auth_with_repl_site?domain=${encodeURIComponent(domain)}`,
       "Login",
       `width=${w},height=${h},left=${left},top=${top}`
     );
