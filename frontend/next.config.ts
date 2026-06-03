@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  allowedDevOrigins: ["*.spock.replit.dev", "*.replit.dev", "*.worf.replit.dev"],
+  allowedDevOrigins: ["*.replit.dev", "*.repl.co", "*.pike.replit.dev", "*.spock.replit.dev", "*.worf.replit.dev"],
   async rewrites() {
     return [
       {
