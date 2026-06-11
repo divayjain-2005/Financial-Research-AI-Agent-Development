@@ -737,12 +737,25 @@ async def stock_news(symbol: str, limit: int = Query(10, ge=1, le=20)):
         logger.warning(f"News fetch error for {symbol}: {e}")
 
     if not articles:
-        # Synthetic fallback — generic market news
+        # Synthetic fallback — generic market news; convert API symbol to friendly display name
+        _index_map = {
+            "^NSEI": "NIFTY 50", "^NSEBANK": "BANK NIFTY", "^BSESN": "SENSEX",
+            "^NSEMDCP50": "MIDCAP NIFTY", "^CNXFIN": "FIN NIFTY", "^INDIAVIX": "INDIA VIX",
+            "GIFTNIFTY": "GIFT NIFTY",
+        }
+        if symbol in _index_map:
+            display_sym = _index_map[symbol]
+        elif symbol.endswith(".NS"):
+            display_sym = symbol[:-3] + " NSE"
+        elif symbol.endswith(".BO"):
+            display_sym = symbol[:-3] + " BSE"
+        else:
+            display_sym = symbol
         articles = [
-            {"title": f"Market update: {symbol} in focus as analysts watch key levels",
+            {"title": f"Market update: {display_sym} in focus as analysts watch key levels",
              "summary": "", "publisher": "Market Desk", "link": "", "published": "",
              "sentiment": {"score": 0.05, "label": "POSITIVE", "subjectivity": 0.3}},
-            {"title": f"{symbol} trading activity remains steady amid broader market trends",
+            {"title": f"{display_sym} trading activity remains steady amid broader market trends",
              "summary": "", "publisher": "Market Desk", "link": "", "published": "",
              "sentiment": {"score": 0.0, "label": "NEUTRAL", "subjectivity": 0.1}},
         ]
