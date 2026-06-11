@@ -33,16 +33,59 @@ function apiToDisplaySym(s: string): string {
 }
 
 const CONTRACT_TENORS = [
-  { label: "Near Month",  days: 30 },
-  { label: "Mid Month",   days: 60 },
-  { label: "Far Month",   days: 90 },
+  { label: "Near Month", days: 30 },
+  { label: "Mid Month",  days: 60 },
+  { label: "Far Month",  days: 90 },
 ];
+
+function ContractCards({ contracts }: { contracts: any[] }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      {contracts.map((c, i) => (
+        <div key={i} className="card" style={{ padding: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontWeight: 700, color: "var(--gold)", fontSize: "0.88rem" }}>{c.tenor}</span>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-3)", background: "var(--bg-hover)", padding: "2px 7px", borderRadius: 4 }}>
+              ~{c.expiry_days}d
+            </span>
+          </div>
+          {[
+            { label: "Spot Price",           value: `₹${fmt(c.spot_price)}` },
+            { label: "Theor. Futures Price", value: `₹${fmt(c.theoretical_futures_price)}`, gold: true },
+            { label: "Basis (F - S)",        value: `${c.basis >= 0 ? "+" : ""}₹${fmt(c.basis)}`, colored: true, val: c.basis },
+            { label: "Risk-Free Rate",       value: `${c.risk_free_rate_pct}%` },
+          ].map(row => (
+            <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, fontSize: "0.8rem" }}>
+              <span style={{ color: "var(--text-3)" }}>{row.label}</span>
+              <span style={{
+                fontWeight: 600, fontFamily: "monospace",
+                color: (row as any).gold
+                  ? "var(--gold)"
+                  : (row as any).colored
+                    ? ((row as any).val >= 0 ? "var(--green)" : "var(--red)")
+                    : "var(--text-1)"
+              }}>
+                {row.value}
+              </span>
+            </div>
+          ))}
+          <div style={{ marginTop: 8, padding: "5px 9px", background: "var(--bg-hover)", borderRadius: 6, fontSize: "0.68rem", color: "var(--text-3)" }}>
+            F = S × e<sup>r×T</sup>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Futures() {
   const [quotes, setQuotes] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"commodities" | "indices" | "currency" | "lookup" | "calculator">("commodities");
+
+  const [indexContracts, setIndexContracts] = useState<Record<string, any[]>>({});
+  const [indexContractsLoading, setIndexContractsLoading] = useState(false);
 
   const [calcSym, setCalcSym] = useState("");
   const [calcExpiry, setCalcExpiry] = useState(30);
@@ -63,36 +106,48 @@ export default function Futures() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Fetch 3-contract data for all indices when the indices tab is selected
+  useEffect(() => {
+    if (tab !== "indices" || !quotes) return;
+    const idxRows = (quotes.futures || []).filter((f: any) => ["NSE", "BSE"].includes(f.exchange));
+    if (idxRows.length === 0 || Object.keys(indexContracts).length > 0) return;
+    setIndexContractsLoading(true);
+    Promise.all(
+      idxRows.map((row: any) =>
+        Promise.all(
+          CONTRACT_TENORS.map(t => api.futuresQuote(row.symbol, t.days).then(r => ({ ...r, tenor: t.label })))
+        ).then(contracts => ({ sym: row.symbol, contracts }))
+      )
+    )
+      .then(results => {
+        const map: Record<string, any[]> = {};
+        results.forEach(({ sym, contracts }) => { map[sym] = contracts; });
+        setIndexContracts(map);
+      })
+      .catch(() => {})
+      .finally(() => setIndexContractsLoading(false));
+  }, [tab, quotes]);
+
   async function calcFuture() {
     if (!calcSym.trim()) return;
-    setCalcLoading(true);
-    setCalcError("");
-    setCalcResult(null);
+    setCalcLoading(true); setCalcError(""); setCalcResult(null);
     try {
-      const apiSym = userToApiSym(calcSym);
-      const r = await api.futuresQuote(apiSym, calcExpiry);
+      const r = await api.futuresQuote(userToApiSym(calcSym), calcExpiry);
       setCalcResult(r);
-    } catch (e: any) {
-      setCalcError(e.message || "Calculation failed");
-    }
+    } catch (e: any) { setCalcError(e.message || "Calculation failed"); }
     setCalcLoading(false);
   }
 
   async function lookupFutures() {
     if (!lookupInput.trim()) return;
     const apiSym = userToApiSym(lookupInput.trim());
-    setLookupLoading(true);
-    setLookupError("");
-    setLookupContracts([]);
-    setLookupSym(apiSym);
+    setLookupLoading(true); setLookupError(""); setLookupContracts([]); setLookupSym(apiSym);
     try {
       const results = await Promise.all(
         CONTRACT_TENORS.map(t => api.futuresQuote(apiSym, t.days).then(r => ({ ...r, tenor: t.label })))
       );
       setLookupContracts(results);
-    } catch (e: any) {
-      setLookupError(e.message || "Failed to load futures data. Check the symbol.");
-    }
+    } catch (e: any) { setLookupError(e.message || "Failed to load futures data. Check the symbol."); }
     setLookupLoading(false);
   }
 
@@ -184,17 +239,58 @@ export default function Futures() {
 
           {tab === "indices" && (
             <>
-              <div style={{ marginBottom: 14 }}>
-                <div className="card" style={{ padding: "12px 16px", marginBottom: 12, background: "#1a2730", borderColor: "var(--gold)" }}>
-                  <div style={{ fontSize: "0.82rem", color: "var(--text-2)", lineHeight: 1.6 }}>
-                    <strong style={{ color: "var(--gold)" }}>Cost-of-Carry Model:</strong> F = S × e<sup>r×T</sup>
-                    &nbsp;|&nbsp; Basis = F − S &nbsp;|&nbsp;
-                    Rate: {quotes?.risk_free_rate_pct}% (India risk-free) &nbsp;|&nbsp; Expiry: ~30 days
-                  </div>
+              <div className="card" style={{ padding: "12px 16px", marginBottom: 14, background: "#1a2730", borderColor: "var(--gold)" }}>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-2)", lineHeight: 1.6 }}>
+                  <strong style={{ color: "var(--gold)" }}>Cost-of-Carry Model:</strong> F = S × e<sup>r×T</sup>
+                  &nbsp;|&nbsp; Basis = F − S &nbsp;|&nbsp;
+                  Rate: {quotes?.risk_free_rate_pct}% (India risk-free) &nbsp;|&nbsp; Expiry: ~30 days
                 </div>
               </div>
-              <FuturesTable rows={indices} />
-              <div style={{ marginTop: 10, fontSize: "0.75rem", color: "var(--text-3)" }}>
+
+              {/* Each index: table row + 3 contract cards */}
+              {indices.map((r: any, i: number) => (
+                <div key={i} style={{ marginBottom: 24 }}>
+                  {/* Row header */}
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+                    background: "var(--bg-card)", border: "1px solid var(--border)",
+                    borderRadius: 10, padding: "12px 18px", marginBottom: 12,
+                  }}>
+                    <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-1)", minWidth: 140 }}>{r.name}</span>
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-3)", background: "var(--bg-hover)", padding: "2px 8px", borderRadius: 4 }}>{r.exchange}</span>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>Spot</span>
+                      <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-1)" }}>{fmt(r.spot_price)}</span>
+                    </div>
+                    <span style={{ fontWeight: 600, fontSize: "0.95rem", color: pctColor(r.change_pct) }}>{pct(r.change_pct)}</span>
+                    {r.theoretical_futures && (
+                      <>
+                        <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: 6 }}>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>Theor. Futures</span>
+                          <span style={{ fontWeight: 700, color: "var(--gold)" }}>{fmt(r.theoretical_futures)}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>Basis</span>
+                          <span style={{ fontWeight: 600, color: r.basis >= 0 ? "var(--green)" : "var(--red)" }}>
+                            {r.basis >= 0 ? "+" : ""}{fmt(r.basis)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* 3 contract cards */}
+                  {indexContractsLoading && !indexContracts[r.symbol] ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "12px 0", color: "var(--text-3)", fontSize: "0.8rem" }}>
+                      <span className="spinner" style={{ width: 16, height: 16 }} /> Loading contracts…
+                    </div>
+                  ) : indexContracts[r.symbol] ? (
+                    <ContractCards contracts={indexContracts[r.symbol]} />
+                  ) : null}
+                </div>
+              ))}
+
+              <div style={{ marginTop: 4, fontSize: "0.75rem", color: "var(--text-3)" }}>
                 ⚠️ Theoretical futures computed via cost-of-carry model. Actual NSE/BSE F&O prices may differ due to demand, dividends, and market microstructure.
               </div>
             </>
@@ -211,7 +307,6 @@ export default function Futures() {
 
           {tab === "lookup" && (
             <div>
-              {/* Search bar */}
               <div className="card" style={{ padding: 22, marginBottom: 16 }}>
                 <div className="section-title" style={{ marginBottom: 12 }}>Futures Lookup — Next 3 Active Contracts</div>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -228,7 +323,13 @@ export default function Futures() {
                   </button>
                 </div>
                 <div style={{ marginTop: 8, fontSize: "0.72rem", color: "var(--text-3)" }}>
-                  Enter stock name followed by exchange (NSE/BSE). Examples: <span style={{ color: "var(--gold)" }}>TCS NSE</span>, <span style={{ color: "var(--gold)" }}>RELIANCE NSE</span>, <span style={{ color: "var(--gold)" }}>NIFTY NSE</span>, <span style={{ color: "var(--gold)" }}>BANKNIFTY NSE</span>
+                  Enter stock name followed by exchange. Examples:&nbsp;
+                  {["TCS NSE", "RELIANCE NSE", "NIFTY NSE", "BANKNIFTY NSE"].map(ex => (
+                    <span key={ex}
+                      style={{ color: "var(--gold)", cursor: "pointer", marginRight: 10 }}
+                      onClick={() => { setLookupInput(ex); }}
+                    >{ex}</span>
+                  ))}
                 </div>
               </div>
 
@@ -240,7 +341,6 @@ export default function Futures() {
 
               {lookupContracts.length > 0 && (
                 <>
-                  {/* Symbol header */}
                   <div style={{
                     display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
                     background: "var(--bg-card)", borderRadius: 10, padding: "12px 18px",
@@ -253,50 +353,12 @@ export default function Futures() {
                     <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-1)" }}>
                       {fmt(lookupContracts[0]?.spot_price)}
                     </span>
-                    <span style={{ marginLeft: 4, fontWeight: 600, color: pctColor(lookupContracts[0]?.change_pct) }}>
+                    <span style={{ fontWeight: 600, color: pctColor(lookupContracts[0]?.change_pct) }}>
                       {pct(lookupContracts[0]?.change_pct)}
                     </span>
                   </div>
-
-                  {/* 3 contract cards */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 16 }}>
-                    {lookupContracts.map((c, i) => (
-                      <div key={i} className="card" style={{ padding: 20 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                          <span style={{ fontWeight: 700, color: "var(--gold)", fontSize: "0.9rem" }}>{c.tenor}</span>
-                          <span style={{ fontSize: "0.72rem", color: "var(--text-3)", background: "var(--bg-hover)", padding: "2px 8px", borderRadius: 4 }}>
-                            ~{c.expiry_days}d
-                          </span>
-                        </div>
-                        {[
-                          { label: "Spot Price",          value: `₹${fmt(c.spot_price)}` },
-                          { label: "Theor. Futures Price", value: `₹${fmt(c.theoretical_futures_price)}`, gold: true },
-                          { label: "Basis (F - S)",        value: `${c.basis >= 0 ? "+" : ""}₹${fmt(c.basis)}`, colored: true, val: c.basis },
-                          { label: "Risk-Free Rate",       value: `${c.risk_free_rate_pct}%` },
-                        ].map(row => (
-                          <div key={row.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: "0.82rem" }}>
-                            <span style={{ color: "var(--text-3)" }}>{row.label}</span>
-                            <span style={{
-                              fontWeight: 600,
-                              fontFamily: "monospace",
-                              color: (row as any).gold
-                                ? "var(--gold)"
-                                : (row as any).colored
-                                  ? ((row as any).val >= 0 ? "var(--green)" : "var(--red)")
-                                  : "var(--text-1)"
-                            }}>
-                              {row.value}
-                            </span>
-                          </div>
-                        ))}
-                        <div style={{ marginTop: 10, padding: "6px 10px", background: "var(--bg-hover)", borderRadius: 6, fontSize: "0.7rem", color: "var(--text-3)" }}>
-                          F = S × e<sup>r×T</sup>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
+                  <ContractCards contracts={lookupContracts} />
+                  <div style={{ marginTop: 12, fontSize: "0.72rem", color: "var(--text-3)" }}>
                     ⚠️ Theoretical prices only via cost-of-carry model. Actual F&O prices may differ. Not financial advice.
                   </div>
                 </>
@@ -338,12 +400,12 @@ export default function Futures() {
                   <div className="card" style={{ padding: 22 }}>
                     <div className="section-title" style={{ marginBottom: 16 }}>Results for {apiToDisplaySym(calcResult.symbol)}</div>
                     {[
-                      { label: "Spot Price",             value: fmt(calcResult.spot_price) },
-                      { label: "Theoretical Futures",    value: fmt(calcResult.theoretical_futures_price), gold: true },
-                      { label: "Basis (F - S)",          value: `${calcResult.basis >= 0 ? "+" : ""}${fmt(calcResult.basis)}` },
-                      { label: "Days to Expiry",         value: `${calcResult.expiry_days} days` },
-                      { label: "Risk-Free Rate",         value: `${calcResult.risk_free_rate_pct}%` },
-                      { label: "Formula Used",           value: calcResult.cost_of_carry_formula },
+                      { label: "Spot Price",          value: fmt(calcResult.spot_price) },
+                      { label: "Theoretical Futures", value: fmt(calcResult.theoretical_futures_price), gold: true },
+                      { label: "Basis (F - S)",       value: `${calcResult.basis >= 0 ? "+" : ""}${fmt(calcResult.basis)}` },
+                      { label: "Days to Expiry",      value: `${calcResult.expiry_days} days` },
+                      { label: "Risk-Free Rate",      value: `${calcResult.risk_free_rate_pct}%` },
+                      { label: "Formula Used",        value: calcResult.cost_of_carry_formula },
                     ].map(r => (
                       <div key={r.label} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: "0.875rem" }}>
                         <span style={{ color: "var(--text-3)" }}>{r.label}</span>
