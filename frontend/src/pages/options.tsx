@@ -29,6 +29,32 @@ const CHAIN_SYMBOLS = [
   { label: "SBIN", sym: "SBIN.NS" },
 ];
 
+const INDEX_MAP: Record<string, string> = {
+  "NIFTY": "^NSEI",
+  "NIFTY NSE": "^NSEI",
+  "BANKNIFTY": "^NSEBANK",
+  "BANKNIFTY NSE": "^NSEBANK",
+  "SENSEX": "^BSESN",
+  "SENSEX BSE": "^BSESN",
+};
+
+function userToApiSym(input: string): string {
+  const s = input.trim().toUpperCase();
+  if (INDEX_MAP[s]) return INDEX_MAP[s];
+  if (s.endsWith(" NSE")) return s.replace(" NSE", ".NS");
+  if (s.endsWith(" BSE")) return s.replace(" BSE", ".BO");
+  return s;
+}
+
+function apiToDisplaySym(s: string): string {
+  if (s === "^NSEI")    return "NIFTY NSE";
+  if (s === "^NSEBANK") return "BANKNIFTY NSE";
+  if (s === "^BSESN")   return "SENSEX BSE";
+  if (s.endsWith(".NS")) return s.replace(".NS", " NSE");
+  if (s.endsWith(".BO")) return s.replace(".BO", " BSE");
+  return s;
+}
+
 function symToTV(s: string): string {
   if (s.endsWith(".NS")) return `NSE:${s.replace(".NS", "")}`;
   if (s.endsWith(".BO")) return `BSE:${s.replace(".BO", "")}`;
@@ -147,9 +173,9 @@ export default function Options() {
             <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
               <input
                 className="input"
-                placeholder="Custom symbol e.g. WIPRO.NS"
+                placeholder="e.g. WIPRO NSE"
                 style={{ width: 200, fontSize: "0.8rem" }}
-                onKeyDown={e => { if (e.key === "Enter") loadChain((e.target as HTMLInputElement).value); }}
+                onKeyDown={e => { if (e.key === "Enter") loadChain(userToApiSym((e.target as HTMLInputElement).value)); }}
               />
             </div>
           </div>
@@ -173,8 +199,7 @@ export default function Options() {
                 marginBottom: 14, border: "1px solid var(--border)",
               }}>
                 <div>
-                  <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-1)" }}>{sym}</span>
-                  <span style={{ marginLeft: 8, fontSize: "0.72rem", color: "var(--text-3)" }}>NSE</span>
+                  <span style={{ fontWeight: 700, fontSize: "1.05rem", color: "var(--text-1)" }}>{apiToDisplaySym(sym)}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                   <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-1)" }}>{fmt2(spotPrice)}</span>
