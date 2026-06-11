@@ -34,6 +34,7 @@ export const api = {
   marketStatus: () => req("/api/v1/stocks/market-status"),
   returns: (symbol: string) => req(`/api/v1/stocks/returns/${encodeURIComponent(symbol)}`),
   sentiment: (text: string) => req("/api/v1/stocks/sentiment", "POST", { text }),
+  newsAndSentiment: (symbol: string, limit = 10) => req(`/api/v1/stocks/news/${encodeURIComponent(symbol)}?limit=${limit}`),
   fundamentals: (symbol: string) => req(`/api/v1/stocks/fundamentals/${encodeURIComponent(symbol)}`),
 
   // Sectors (Week 5-6)
