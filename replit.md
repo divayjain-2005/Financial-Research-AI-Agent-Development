@@ -1,36 +1,53 @@
-# [Project name]
+# Artha – Financial Research AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Indian stock market research tool with live NSE/BSE data, options chain, futures, bonds, economic indicators, portfolio tracking, watchlist, and an AI assistant.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/artha run dev` — run the React/Vite frontend (port set by `$PORT`)
+- `cd backend && python main.py` — run the Python FastAPI backend (port 8000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- **Frontend**: React 19 + Vite 7, Wouter (routing), Tailwind CSS v4, pnpm workspaces, TypeScript 5.9
+- **Backend**: Python FastAPI, yfinance, uvicorn
+- **Charts**: TradingView widget (embedded), lightweight-charts
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/artha/` — React/Vite frontend artifact
+  - `src/pages/` — one file per route (index, stocks, options, futures, bonds, economic-indicators, compare, portfolio, watchlist, sectors, calculators, wellness, brokers, chat)
+  - `src/components/` — Layout.tsx, AuthGate.tsx, TradingViewChart.tsx
+  - `src/utils/api.ts` — all fetch calls to the Python backend
+  - `src/index.css` — all custom CSS variables and utility classes (dark theme)
+- `backend/` — Python FastAPI server
+  - `main.py` — entrypoint, all API routes under `/api/v1/`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Vite dev server proxies `/api/*` and `/health` to `http://localhost:8000` — no CORS config needed in dev.
+- AuthGate skips the login wall on `.replit.dev` / `localhost` (dev hosts) — Replit Auth headers only land on `.replit.app` production URLs.
+- Wouter `<Router base={import.meta.env.BASE_URL}>` handles the artifact's base path prefix automatically.
+- TradingViewChart uses the TradingView embedded widget (no API key needed); `toTVSymbol()` converts Yahoo Finance symbols (e.g. `RELIANCE.NS`) to TradingView format (`NSE:RELIANCE`).
+- All API utility functions are in `src/utils/api.ts`; `BASE` defaults to `""` (relative URL) so the Vite proxy handles routing to Python.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Live market dashboard (Nifty 50, Bank Nifty, Sensex, FIN Nifty, India VIX, top stocks)
+- Stock analysis: quote, technicals, fundamentals, TradingView chart
+- Options chain viewer + Black-Scholes calculator
+- Futures quotes and analysis
+- Bonds: RBI rates, yield curve, ETFs, YTM calculator
+- Economic indicators, currency rates, commodities
+- Portfolio tracker with P&L, transactions
+- Watchlist with live quote refresh
+- Sector comparison (IT, Banking, Energy, FMCG, Pharma, Auto)
+- SIP/tax calculators, debt/EMI, insurance, retirement, emergency fund
+- Financial wellness score
+- Broker API key manager (Zerodha, Upstox, etc.)
+- AI assistant (chat with market context)
 
 ## User preferences
 
@@ -38,7 +55,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Python backend must be running on port 8000 before the frontend loads (Vite proxy target).
+- `GIFTNIFTY` returns 503 from Yahoo Finance — this is an upstream data issue, not a bug.
+- `process.env` is not available in Vite — use `import.meta.env.VITE_*` for env vars.
+- TradingViewChart must not be SSR'd (it uses `document`); in Next.js it was `dynamic(..., {ssr:false})` — in Vite it's just a direct import (no SSR at all).
 
 ## Pointers
 

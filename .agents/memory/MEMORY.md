@@ -1,0 +1,1 @@
+- [Artha migration notes](artha-migration.md) — Next.js→Vite migration gotchas for this project (process.env, dynamic imports, routing).
