@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4eGHadSBsW9xwUoF-dc5Y"
+uri = "file://README.md"
+type = "text"
+title = "Artha – README"
