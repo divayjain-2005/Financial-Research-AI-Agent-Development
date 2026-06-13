@@ -155,7 +155,7 @@ artha/
 
 ## API Reference
 
-Base URL: `https://your-backend.up.railway.app`
+Base URL: `https://financial-research-ai-agent-development-production.up.railway.app`
 
 | Method | Endpoint | Description |
 |---|---|---|
