@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm --filter @workspace/artha run build",
+  "outputDirectory": "artifacts/artha/dist"
+}
