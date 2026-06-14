@@ -10,6 +10,12 @@ const INDICES = [
   { label: "MIDCAP NIFTY",   symbol: "^NSEMDCP50" },
   { label: "FIN NIFTY",      symbol: "^CNXFIN" },
   { label: "INDIA VIX",      symbol: "^INDIAVIX" },
+  { label: "S&P 500",        symbol: "^GSPC" },
+  { label: "DOW JONES",      symbol: "^DJI" },
+  { label: "NASDAQ",         symbol: "^IXIC" },
+  { label: "SHANGHAI COMP",  symbol: "000001.SS" },
+  { label: "HANG SENG",      symbol: "^HSI" },
+  { label: "STRAITS TIMES",  symbol: "^STI" },
 ];
 
 const QUICK_STOCKS = ["RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","ICICIBANK.NS","WIPRO.NS"];
@@ -420,26 +426,6 @@ export default function Dashboard() {
 
         {/* News & Sentiment */}
         <NewsFeed />
-      </div>
-
-      {/* Features overview */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-        {[
-          { label: "Stock Analysis",    desc: "Technical + fundamental deep dive on any NSE/BSE stock", href: "/stocks",      icon: "📈" },
-          { label: "Portfolio Tracker", desc: "Track holdings, cost basis, live P&L",                   href: "/portfolio",   icon: "💼" },
-          { label: "SIP & Tax Calc",    desc: "SIP projections with step-up, LTCG/STCG tax estimates", href: "/calculators", icon: "🧮" },
-          { label: "Sector Compare",    desc: "IT, Banking, Energy, FMCG, Pharma, Auto",               href: "/sectors",     icon: "🏭" },
-          { label: "Financial Wellness",desc: "Score your personal finance health",                     href: "/wellness",    icon: "💯" },
-          { label: "AI Assistant",      desc: "Ask Artha any market or planning question",             href: "/chat",        icon: "🤖" },
-        ].map(item => (
-          <a key={item.label} href={item.href} style={{ textDecoration: "none" }}>
-            <div className="card-hover" style={{ padding: "16px 18px", cursor: "pointer" }}>
-              <div style={{ fontSize: "1.4rem", marginBottom: 6 }}>{item.icon}</div>
-              <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: "0.8rem", color: "var(--text-3)", lineHeight: 1.5 }}>{item.desc}</div>
-            </div>
-          </a>
-        ))}
       </div>
 
       {openIdx && <ReturnsModal index={openIdx} onClose={() => setOpenIdx(null)} />}
