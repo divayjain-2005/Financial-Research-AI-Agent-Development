@@ -1,3 +1,42 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <defs>
+    <!-- Beautiful multi-stop gold gradient for a realistic metallic look -->
+    <linearGradient id="goldGradient" x1="35" y1="45" x2="145" y2="135" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FCE694"/>
+      <stop offset="30%" stop-color="#C9A84C"/>
+      <stop offset="70%" stop-color="#A88A38"/>
+      <stop offset="100%" stop-color="#705616"/>
+    </linearGradient>
+    <!-- Subtle glow/shadow effect for the gold icon -->
+    <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#C9A84C" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Dark premium background matching the app theme -->
+  <rect width="180" height="180" rx="42" fill="#080D12" stroke="#1E2D3D" stroke-width="4"/>
+
+  <!-- The "A" / Delta triangle shape -->
+  <path d="M 90 44 L 144 133 L 36 133 Z" 
+        stroke="url(#goldGradient)" 
+        stroke-width="12" 
+        stroke-linejoin="round" 
+        fill="none"
+        filter="url(#glow)"/>
+
+  <!-- The rising financial chart line in the center -->
+  <path d="M 58 115 L 82 93 L 104 100 L 126 73" 
+        stroke="url(#goldGradient)" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+
+  <!-- The arrow head for the chart line -->
+  <path d="M 116 73 L 126 73 L 126 83" 
+        stroke="url(#goldGradient)" 
+        stroke-width="8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
 </svg>
