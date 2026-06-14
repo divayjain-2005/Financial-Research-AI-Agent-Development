@@ -155,6 +155,81 @@ _YF_HEADERS = {
     "Referer": "https://finance.yahoo.com/",
 }
 
+# ── Yahoo Finance crumb / session (needed for quoteSummary) ───────────────────
+_yf_session: Optional[Any] = None
+_yf_crumb: Optional[str] = None
+_yf_crumb_ts: float = 0.0
+_YF_CRUMB_TTL = 3600  # 1 hour
+
+_HTML_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+}
+
+def _get_yf_crumb() -> Optional[str]:
+    global _yf_session, _yf_crumb, _yf_crumb_ts
+    now = time.time()
+    if _yf_crumb and (now - _yf_crumb_ts) < _YF_CRUMB_TTL:
+        return _yf_crumb
+    try:
+        sess = _requests.Session()
+        sess.headers.update(_HTML_HEADERS)
+        # Visit finance.yahoo.com with HTML headers to get A1/A3/A1S cookies
+        sess.get("https://finance.yahoo.com/", timeout=10)
+        # Fetch crumb using query2 (more reliable)
+        cr = sess.get("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=8)
+        if cr.status_code == 200 and cr.text.strip() and "Too Many" not in cr.text and len(cr.text.strip()) < 50:
+            _yf_crumb = cr.text.strip()
+            _yf_crumb_ts = now
+            _yf_session = sess
+            logger.info(f"YF crumb refreshed ok (len={len(_yf_crumb)})")
+            return _yf_crumb
+        else:
+            logger.warning(f"YF crumb bad response: {cr.status_code} | {cr.text[:60]}")
+    except Exception as e:
+        logger.warning(f"YF crumb fetch failed: {e}")
+    return None
+
+
+def _fetch_quote_summary(symbol: str) -> Dict:
+    """Fetch quoteSummary with crumb. Returns merged flat dict of raw values."""
+    crumb = _get_yf_crumb()
+    if not crumb:
+        return {}
+    sess = _yf_session or _requests
+    try:
+        qs_url = (
+            f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+            f"?modules=summaryDetail,defaultKeyStatistics,financialData,assetProfile"
+            f"&crumb={crumb}"
+        )
+        qr = sess.get(qs_url, headers=_HTML_HEADERS, timeout=10)
+        if qr.status_code == 401:
+            # Crumb expired — reset
+            global _yf_crumb, _yf_crumb_ts
+            _yf_crumb = None
+            _yf_crumb_ts = 0.0
+            return {}
+        if qr.status_code == 200 and qr.text.strip():
+            result_list = qr.json().get("quoteSummary", {}).get("result") or []
+            if not result_list:
+                return {}
+            qdata = result_list[0] or {}
+            flat: Dict = {}
+            for section in ("summaryDetail", "defaultKeyStatistics", "financialData", "assetProfile"):
+                for k, v in (qdata.get(section) or {}).items():
+                    if isinstance(v, dict) and "raw" in v:
+                        flat[k] = v["raw"]
+                    elif not isinstance(v, dict):
+                        flat[k] = v
+            return flat
+    except Exception as e:
+        logger.warning(f"quoteSummary fetch failed for {symbol}: {e}")
+    return {}
+
 _PERIOD_TO_RANGE = {
     "1d": "1d", "5d": "5d", "1mo": "1mo", "3mo": "3mo",
     "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y", "max": "max",
@@ -212,22 +287,8 @@ def _fetch_yf(symbol: str, period: str = "3mo", interval: str = "1d") -> Optiona
             "symbol": symbol,
         }
         # Fetch quote summary for richer fundamentals
-        try:
-            qs_url = (
-                f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
-                f"?modules=summaryDetail,defaultKeyStatistics,financialData,quoteType,assetProfile"
-            )
-            qr = _requests.get(qs_url, headers=_YF_HEADERS, timeout=8)
-            if qr.status_code == 200 and qr.text.strip():
-                qdata = qr.json().get("quoteSummary", {}).get("result", [{}])[0] or {}
-                for section in ("summaryDetail", "defaultKeyStatistics", "financialData", "quoteType", "assetProfile"):
-                    for k, v in (qdata.get(section) or {}).items():
-                        if isinstance(v, dict) and "raw" in v:
-                            info[k] = v["raw"]
-                        elif not isinstance(v, dict):
-                            info[k] = v
-        except Exception as qe:
-            logger.warning(f"quoteSummary fetch failed for {symbol}: {qe}")
+        qs = _fetch_quote_summary(symbol)
+        info.update(qs)
         result = {"symbol": symbol, "prices": prices, "info": info}
         cache_set(cache_key, result, ttl=300)
         return result
@@ -1177,7 +1238,8 @@ async def fundamental_analysis(symbol: str):
     data = _fetch_yf(symbol, period="5d", interval="1d")
     if not data:
         raise HTTPException(status_code=404, detail=f"No data for {symbol}")
-    info = data["info"]
+    # Merge cached chart info with a fresh quoteSummary fetch (not cached separately)
+    info = {**data["info"], **_fetch_quote_summary(symbol)}
 
     def safe(key, default=None):
         val = info.get(key, default)

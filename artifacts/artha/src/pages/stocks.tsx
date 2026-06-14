@@ -20,7 +20,6 @@ export default function Stocks() {
   const [rawSymbol, setRawSymbol] = useState("");
   const [quote, setQuote] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
-  const [period, setPeriod] = useState("3mo");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview"|"technicals"|"fundamentals"|"chart">("overview");
@@ -80,16 +79,6 @@ export default function Stocks() {
           onKeyDown={e => e.key === "Enter" && load()}
           style={{ maxWidth: 360 }}
         />
-        <select className="input" value={period} onChange={e => setPeriod(e.target.value)} style={{ width: 100 }}>
-          {[
-            { val: "1mo", label: "1M" },
-            { val: "3mo", label: "3M" },
-            { val: "6mo", label: "6M" },
-            { val: "1y",  label: "1Y" },
-            { val: "2y",  label: "2Y" },
-            { val: "5y",  label: "5Y" },
-          ].map(p => <option key={p.val} value={p.val}>{p.label}</option>)}
-        </select>
         <button className="btn btn-gold" onClick={() => load()} disabled={loading}>
           {loading ? <span className="spinner" /> : "Analyse"}
         </button>
