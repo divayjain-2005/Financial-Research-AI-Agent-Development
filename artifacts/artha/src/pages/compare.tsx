@@ -8,23 +8,42 @@ function pctColor(n: any) { return n == null ? "var(--text-2)" : Number(n) >= 0 
 function pctFmt(n: any) { return n == null ? "—" : `${Number(n) >= 0 ? "+" : ""}${Number(n).toFixed(2)}%`; }
 
 const PRESETS = [
-  { label: "IT Giants",    syms: "TCS.NS,INFY.NS,WIPRO.NS,HCLTECH.NS" },
-  { label: "HDFC vs ICICI",syms: "HDFCBANK.NS,ICICIBANK.NS" },
-  { label: "Reliance vs ITC",syms: "RELIANCE.NS,ITC.NS" },
-  { label: "Auto",         syms: "MARUTI.NS,TATAMOTORS.NS,M&M.NS" },
-  { label: "Pharma",       syms: "SUNPHARMA.NS,DRREDDY.NS,CIPLA.NS" },
+  { label: "IT Giants",      syms: "TCS NSE, INFY NSE, WIPRO NSE, HCLTECH NSE" },
+  { label: "HDFC vs ICICI",  syms: "HDFCBANK NSE, ICICIBANK NSE" },
+  { label: "Reliance vs ITC",syms: "RELIANCE NSE, ITC NSE" },
+  { label: "Auto",           syms: "MARUTI NSE, TATAMOTORS NSE, M&M NSE" },
+  { label: "Pharma",         syms: "SUNPHARMA NSE, DRREDDY NSE, CIPLA NSE" },
 ];
 
+/** Convert "INFY NSE" → "INFY.NS", "INFY BSE" → "INFY.BO", "INFY.NS" unchanged */
+function toYFSymbol(raw: string): string {
+  const s = raw.trim().toUpperCase();
+  if (s.includes(".")) return s;
+  const parts = s.split(/\s+/);
+  if (parts.length >= 2) {
+    const ticker = parts[0];
+    const exch = parts[parts.length - 1];
+    if (exch === "BSE") return `${ticker}.BO`;
+    return `${ticker}.NS`;
+  }
+  return `${s}.NS`;
+}
+
+function parseInput(input: string): string {
+  return input.split(",").map(s => toYFSymbol(s)).filter(Boolean).join(",");
+}
+
 export default function Compare() {
-  const [input, setInput] = useState("RELIANCE.NS,TCS.NS,INFY.NS");
+  const [input, setInput] = useState("RELIANCE NSE, TCS NSE, INFY NSE");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function run(syms?: string) {
-    const s = (syms || input).trim();
-    if (!s) return;
-    setInput(s);
+    const raw = (syms || input).trim();
+    if (!raw) return;
+    if (syms) setInput(syms);
+    const s = parseInput(raw);
     setLoading(true); setError("");
     try {
       const res = await api.compare(s);
@@ -45,7 +64,7 @@ export default function Compare() {
           value={input}
           onChange={e => setInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === "Enter" && run()}
-          placeholder="Comma-separated symbols e.g. TCS.NS,INFY.NS,WIPRO.NS"
+          placeholder="e.g. INFY NSE, TCS NSE, WIPRO BSE"
         />
         <button className="btn btn-gold" onClick={() => run()} disabled={loading}>
           {loading ? <span className="spinner" /> : "Compare"}
@@ -153,7 +172,7 @@ export default function Compare() {
       )}
 
       {!loading && results.length === 0 && (
-        <div className="empty">Enter comma-separated symbols and click Compare</div>
+        <div className="empty">Enter symbols like <strong>INFY NSE</strong> or <strong>INFY BSE</strong>, comma-separated, then click Compare</div>
       )}
     </Layout>
   );
