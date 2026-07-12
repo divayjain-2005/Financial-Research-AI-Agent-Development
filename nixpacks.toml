@@ -1,0 +1,13 @@
+# Railway / Nixpacks build config for the Artha FastAPI backend
+
+[phases.setup]
+nixPkgs = ["python312", "python312Packages.pip"]
+
+[phases.install]
+cmds = [
+  "pip install uv",
+  "uv sync --frozen"
+]
+
+[start]
+cmd = "python backend/main.py"
