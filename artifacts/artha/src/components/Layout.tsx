@@ -131,7 +131,6 @@ export default function Layout({ children, title }: { children: ReactNode; title
 
         <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
           <div style={{ fontSize: "0.65rem", color: "var(--text-3)", lineHeight: 1.5 }}>
-            v1.0.0 · Weeks 1–8 Complete<br />
             Not investment advice
           </div>
         </div>
