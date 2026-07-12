@@ -1,45 +1,29 @@
-# [Project name]
+# Artha – Financial Research AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An AI-powered financial research assistant for Indian stock markets (NSE/BSE): live quotes, technical analysis, sentiment, SIP/tax calculators, portfolio & watchlist tracking, sector/futures/bonds/options data, and an AI chat assistant.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/artha run dev` — frontend (Vite, served via the `artifacts/artha: web` workflow)
+- The Python backend runs as the `artifacts/api-server: API Server` workflow (see below — it is NOT the Node/Express scaffold)
+- Required secret (optional): `CLAUDE_API_KEY` — enables Claude-powered chat responses in `/chat`; without it the assistant falls back to rule-based answers automatically, no error shown to users.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React 19 + Vite 7 + wouter + Tailwind v4, in `artifacts/artha` (react-vite artifact)
+- Backend: Python 3.12 + FastAPI, in `backend/main.py` — ported as-is from the original Railway-hosted service, NOT rewritten to Node/Express
+- Backend persistence: SQLite (`backend/finance.db`, gitignored, recreated on first run)
+- Market data: direct calls to Yahoo Finance chart/quoteSummary endpoints (no yfinance package needed)
+- Sentiment: TextBlob
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/artha/src/pages/*` — one file per feature page (stocks, options, futures, bonds, portfolio, watchlist, chat, etc.)
+- `artifacts/artha/src/utils/api.ts` — single fetch client hitting `/api/v1/...` (same-origin via the platform proxy, no `VITE_API_URL` needed)
+- `backend/main.py` — the entire FastAPI app (all ~50 routes); `/health` and `/api/health` both work
+- `artifacts/api-server/.replit-artifact/artifact.toml` — repurposed to launch the Python backend (`services.development.run` calls `.pythonlibs/bin/python backend/main.py` with absolute paths) instead of the default Node/Express scaffold in `artifacts/api-server/`. The Node scaffold source is unused.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- The project's standard backend slot (`artifacts/api-server`) is normally Node/Express + Drizzle, but the source app's backend is a large, working Python FastAPI service (yfinance-style market data, pandas, TextBlob sentiment). Rewriting ~50 endpoints to Node was judged higher-risk than repurposing the api-server artifact's run command to launch Python directly on the same declared port/path (`/api`, port 8080) — the proxy only cares about the run command, not the language.
+- Frontend calls are same-origin (`BASE = ""`) through the platform proxy rather than an external `VITE_API_URL`, since both frontend and backend now live in the same Repl.
