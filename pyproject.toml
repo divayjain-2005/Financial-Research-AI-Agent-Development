@@ -18,4 +18,5 @@ dependencies = [
     "requests>=2.34.2",
     "textblob>=0.20.0",
     "uvicorn>=0.51.0",
+    "yfinance==0.2.66",
 ]

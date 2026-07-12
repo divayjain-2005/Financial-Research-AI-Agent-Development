@@ -93,7 +93,16 @@ export default function Bonds() {
           </div>
 
           <div className="card" style={{ padding: 20 }}>
-            <div className="section-title" style={{ marginBottom: 14 }}>Policy Details</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div className="section-title" style={{ marginBottom: 0 }}>Policy Details</div>
+              <span style={{
+                fontSize: "0.68rem", fontWeight: 700, padding: "3px 9px", borderRadius: 20,
+                color: rbiRates.data_source === "live" ? "var(--green)" : "var(--text-3)",
+                background: rbiRates.data_source === "live" ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.12)",
+              }}>
+                {rbiRates.data_source === "live" ? "● LIVE — rbi.org.in" : "REFERENCE"}
+              </span>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {[
                 { label: "Last Updated",     value: rbiRates.last_updated },

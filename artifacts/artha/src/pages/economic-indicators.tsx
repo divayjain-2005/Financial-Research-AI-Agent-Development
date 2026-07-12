@@ -30,15 +30,17 @@ export default function EconomicIndicators() {
   const macroData = macro?.macro_indicators;
   const rbiRates  = macro?.rbi_rates;
 
+  const macroIsLive = macroData?.data_source === "live";
+  const rbiIsLive = rbiRates?.data_source === "live";
   const MACRO_CARDS = macroData ? [
-    { label: "GDP Growth",      value: `${macroData.gdp_growth_rate_pct}%`,   color: "var(--green)",   desc: macroData.gdp_growth_description },
-    { label: "CPI Inflation",   value: `${macroData.cpi_inflation_pct}%`,     color: "#fb923c",        desc: macroData.cpi_description },
-    { label: "WPI Inflation",   value: `${macroData.wpi_inflation_pct}%`,     color: "#fb923c",        desc: macroData.wpi_description },
-    { label: "Repo Rate",       value: `${rbiRates?.repo_rate}%`,             color: "var(--gold)",    desc: "RBI Monetary Policy Rate" },
-    { label: "IIP Growth",      value: `${macroData.iip_growth_pct}%`,        color: "#60a5fa",        desc: macroData.iip_description },
-    { label: "Fiscal Deficit",  value: `${macroData.fiscal_deficit_gdp_pct}% of GDP`, color: "#f472b6", desc: macroData.fiscal_deficit_description },
-    { label: "Forex Reserves",  value: `$${macroData.forex_reserves_bn_usd}B`, color: "var(--green)", desc: macroData.forex_description },
-    { label: "Unemployment",    value: `${macroData.unemployment_rate_pct}%`, color: "#a78bfa",        desc: "CMIE Unemployment Rate" },
+    { label: "GDP Growth",      value: `${macroData.gdp_growth_rate_pct}%`,   color: "var(--green)",   desc: macroData.gdp_growth_description, live: macroIsLive },
+    { label: "CPI Inflation",   value: `${macroData.cpi_inflation_pct}%`,     color: "#fb923c",        desc: macroData.cpi_description, live: macroIsLive },
+    { label: "WPI Inflation",   value: `${macroData.wpi_inflation_pct}%`,     color: "#fb923c",        desc: macroData.wpi_description, live: false },
+    { label: "Repo Rate",       value: `${rbiRates?.repo_rate}%`,             color: "var(--gold)",    desc: "RBI Monetary Policy Rate", live: rbiIsLive },
+    { label: "IIP Growth",      value: `${macroData.iip_growth_pct}%`,        color: "#60a5fa",        desc: macroData.iip_description, live: false },
+    { label: "Fiscal Deficit",  value: `${macroData.fiscal_deficit_gdp_pct}% of GDP`, color: "#f472b6", desc: macroData.fiscal_deficit_description, live: macroIsLive },
+    { label: "Forex Reserves",  value: `${macroData.forex_reserves_bn_usd}B`, color: "var(--green)", desc: macroData.forex_description, live: macroIsLive },
+    { label: "Unemployment",    value: `${macroData.unemployment_rate_pct}%`, color: "#a78bfa",        desc: "CMIE Unemployment Rate", live: macroIsLive },
   ] : [];
 
   return (
@@ -61,16 +63,39 @@ export default function EconomicIndicators() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
                 {MACRO_CARDS.map(c => (
                   <div key={c.label} className="card" style={{ padding: "16px 18px", borderTop: `3px solid ${c.color}` }}>
-                    <div className="metric-label">{c.label}</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div className="metric-label">{c.label}</div>
+                      <span style={{ fontSize: "0.6rem", fontWeight: 700, color: c.live ? "var(--green)" : "var(--text-3)" }}>
+                        {c.live ? "● LIVE" : "REF"}
+                      </span>
+                    </div>
                     <div style={{ fontSize: "1.6rem", fontWeight: 800, color: c.color, marginTop: 4, lineHeight: 1 }}>{c.value}</div>
                     <div style={{ fontSize: "0.68rem", color: "var(--text-3)", marginTop: 6, lineHeight: 1.4 }}>{c.desc}</div>
                   </div>
                 ))}
               </div>
 
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
+                <span style={{
+                  fontSize: "0.68rem", fontWeight: 700, padding: "3px 9px", borderRadius: 20,
+                  color: macroData.data_source === "live" ? "var(--green)" : "var(--text-3)",
+                  background: macroData.data_source === "live" ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.12)",
+                }}>
+                  {macroData.data_source === "live" ? "● LIVE — World Bank Open Data" : "REFERENCE"}
+                </span>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
                 <div className="card" style={{ padding: 20 }}>
-                  <div className="section-title" style={{ marginBottom: 14 }}>RBI Key Rates</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div className="section-title" style={{ marginBottom: 0 }}>RBI Key Rates</div>
+                    <span style={{
+                      fontSize: "0.65rem", fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                      color: rbiRates?.data_source === "live" ? "var(--green)" : "var(--text-3)",
+                      background: rbiRates?.data_source === "live" ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.12)",
+                    }}>
+                      {rbiRates?.data_source === "live" ? "● LIVE" : "REFERENCE"}
+                    </span>
+                  </div>
                   {rbiRates && Object.entries({
                     "Repo Rate": rbiRates.repo_rate,
                     "Reverse Repo Rate": rbiRates.reverse_repo_rate,

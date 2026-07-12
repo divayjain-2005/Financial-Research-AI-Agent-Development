@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import json
 import sqlite3
 import logging
@@ -1981,7 +1982,7 @@ async def get_single_future(symbol: str, expiry_days: int = Query(30, ge=1, le=3
 
 
 # ── Bonds helpers ──────────────────────────────────────────────────────────────
-# RBI key rates — updated to latest known values (April 2025)
+# RBI key rates — static fallback only, used if the live scrape below fails.
 RBI_RATES = {
     "repo_rate":         6.50,
     "reverse_repo_rate": 3.35,
@@ -1993,6 +1994,116 @@ RBI_RATES = {
     "next_mpc_meeting":  "June 4-6, 2025",
     "source":            "Reserve Bank of India",
 }
+
+_RBI_RATE_LABELS = {
+    "repo_rate":         "Policy Repo Rate",
+    "reverse_repo_rate": "Fixed Reverse Repo Rate",
+    "crr":               "CRR",
+    "slr":               "SLR",
+    "msf_rate":          "Marginal Standing Facility Rate",
+    "bank_rate":         "Bank Rate",
+}
+
+def _next_mpc_estimate(today: Optional[datetime] = None) -> str:
+    """RBI's MPC meets bi-monthly, historically announced in Feb/Apr/Jun/Aug/Oct/Dec.
+    We don't have a live feed for the exact future dates, so we estimate the next
+    cycle month from today's date rather than showing a stale hardcoded date."""
+    today = today or datetime.utcnow()
+    cycle_months = [2, 4, 6, 8, 10, 12]
+    year = today.year
+    upcoming = [m for m in cycle_months if m > today.month]
+    if upcoming:
+        month = upcoming[0]
+    else:
+        month = cycle_months[0]
+        year += 1
+    month_name = datetime(year, month, 1).strftime("%B %Y")
+    return f"Early {month_name} (estimated, bi-monthly MPC cycle — confirm exact dates at rbi.org.in)"
+
+def _fetch_rbi_live_rates() -> Optional[Dict]:
+    """Scrape RBI's official homepage 'Current Rates' widget for live policy rates."""
+    cache_key = "rbi_live_rates"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        resp = _requests.get(
+            "https://www.rbi.org.in/",
+            headers={"User-Agent": "Mozilla/5.0 (compatible; ArthaBot/1.0)"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        html = resp.text
+        rates: Dict[str, float] = {}
+        for key, label in _RBI_RATE_LABELS.items():
+            m = re.search(re.escape(label) + r"\s*</th>\s*<td[^>]*>\s*:\s*([\d.]+)\s*%", html)
+            if m:
+                rates[key] = float(m.group(1))
+        if len(rates) < 4:
+            return None  # too few matched — page structure likely changed, don't trust partial data
+        date_m = re.search(r"as on\s*(?:<!--.*?-->\s*)?([A-Za-z]+\s+\d{1,2},\s+\d{4})", html)
+        last_updated = date_m.group(1) if date_m else datetime.utcnow().strftime("%B %d, %Y")
+        result = {
+            **rates,
+            "last_updated":     last_updated,
+            "next_mpc_meeting": _next_mpc_estimate(),
+            "source":           "Reserve Bank of India (live)",
+            "data_source":      "live",
+        }
+        cache_set(cache_key, result, ttl=3600)
+        return result
+    except Exception as e:
+        logger.warning(f"RBI live rate scrape failed: {e}")
+        return None
+
+_WB_INDICATORS = {
+    "gdp_growth_rate_pct":         "NY.GDP.MKTP.KD.ZG",
+    "cpi_inflation_pct":           "FP.CPI.TOTL.ZG",
+    "forex_reserves_bn_usd":       "FI.RES.TOTL.CD",
+    "unemployment_rate_pct":       "SL.UEM.TOTL.ZS",
+    "fiscal_deficit_gdp_pct":      "GC.NLD.TOTL.GD.ZS",
+    "current_account_deficit_gdp": "BN.CAB.XOKA.GD.ZS",
+}
+
+def _fetch_worldbank_indicators() -> Optional[Dict]:
+    """Fetch the latest available value for each World Bank indicator for India.
+    World Bank is the closest free, no-key live source for these macro series;
+    it publishes annual data so 'latest' can lag the current quarter by design."""
+    cache_key = "worldbank_india_macro"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    out: Dict[str, Any] = {}
+    years: Dict[str, str] = {}
+    try:
+        for field, indicator in _WB_INDICATORS.items():
+            resp = _requests.get(
+                f"https://api.worldbank.org/v2/country/IN/indicator/{indicator}",
+                params={"format": "json", "per_page": 5, "mrv": 1},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            if not isinstance(payload, list) or len(payload) < 2 or not payload[1]:
+                continue
+            entry = payload[1][0]
+            if entry.get("value") is None:
+                continue
+            value = entry["value"]
+            if field == "forex_reserves_bn_usd":
+                value = value / 1e9
+            if field == "fiscal_deficit_gdp_pct":
+                value = -value  # WB reports net lending(+)/borrowing(-); deficit is the positive magnitude of borrowing
+            out[field] = round(value, 2)
+            years[field] = entry.get("date", "")
+        if not out:
+            return None
+        result = {"values": out, "years": years, "data_source": "live"}
+        cache_set(cache_key, result, ttl=86400)
+        return result
+    except Exception as e:
+        logger.warning(f"World Bank macro fetch failed: {e}")
+        return None
 
 GSEC_BENCHMARKS = [
     {"tenor": "91-Day T-Bill",  "symbol": "^IRX",    "maturity_years": 0.25, "type": "treasury_bill"},
@@ -2050,12 +2161,19 @@ def _ytm_calculator(face: float, coupon_rate: float, price: float, years: float,
 # ── Bonds API endpoints ────────────────────────────────────────────────────────
 @app.get("/api/v1/bonds/rbi-rates")
 async def get_rbi_rates():
-    """Current RBI monetary policy key rates."""
-    return {**RBI_RATES, "disclaimer": "Rates are updated manually. Verify at rbi.org.in for latest values."}
+    """Current RBI monetary policy key rates — live-scraped from rbi.org.in, with a
+    static fallback only if the live fetch fails."""
+    live = _fetch_rbi_live_rates()
+    if live:
+        return {**live, "disclaimer": "Live rates scraped from the RBI homepage. Verify at rbi.org.in for official confirmation."}
+    return {**RBI_RATES, "data_source": "static_fallback",
+            "disclaimer": "Live RBI data temporarily unavailable — showing last known reference values. Verify at rbi.org.in."}
 
 @app.get("/api/v1/bonds/yield-curve")
 async def get_yield_curve():
     """Indian G-Sec benchmark yield curve (mix of live and approximated data)."""
+    live_rbi = _fetch_rbi_live_rates()
+    repo_rate = live_rbi["repo_rate"] if live_rbi else RBI_RATES["repo_rate"]
     curve = []
     for bench in GSEC_BENCHMARKS:
         row: Dict[str, Any] = {
@@ -2077,9 +2195,9 @@ async def get_yield_curve():
         curve.append(row)
     return {
         "yield_curve": curve,
-        "rbi_repo_rate": RBI_RATES["repo_rate"],
-        "as_of": "April 2025",
-        "disclaimer": "Reference yields are approximate. Live data from Yahoo Finance where available.",
+        "rbi_repo_rate": repo_rate,
+        "as_of": datetime.utcnow().strftime("%B %Y"),
+        "disclaimer": "Reference yields are approximate. Live data from Yahoo Finance and RBI where available.",
     }
 
 @app.get("/api/v1/bonds/etfs")
@@ -2173,10 +2291,45 @@ COMMODITY_LIST = [
 # ── Economic Indicators API endpoints ─────────────────────────────────────────
 @app.get("/api/v1/economic/indicators")
 async def get_economic_indicators():
-    """Indian macroeconomic indicators (GDP, inflation, fiscal deficit, etc.)."""
+    """Indian macroeconomic indicators — GDP growth, CPI inflation, forex reserves,
+    unemployment, fiscal deficit and current account are live-fetched from the World
+    Bank's open data API (annual series, so 'latest' may lag the current quarter).
+    WPI inflation and IIP growth have no free live source and remain static reference
+    figures — clearly labelled as such below."""
+    wb = _fetch_worldbank_indicators()
+    macro = dict(ECONOMIC_STATIC)
+    if wb:
+        v, y = wb["values"], wb["years"]
+        if "gdp_growth_rate_pct" in v:
+            macro["gdp_growth_rate_pct"] = v["gdp_growth_rate_pct"]
+            macro["gdp_growth_description"] = f"GDP growth, annual % (World Bank, {y['gdp_growth_rate_pct']})"
+        if "cpi_inflation_pct" in v:
+            macro["cpi_inflation_pct"] = v["cpi_inflation_pct"]
+            macro["cpi_description"] = f"CPI Inflation, annual % (World Bank, {y['cpi_inflation_pct']})"
+        if "forex_reserves_bn_usd" in v:
+            macro["forex_reserves_bn_usd"] = v["forex_reserves_bn_usd"]
+            macro["forex_description"] = f"RBI Forex Reserves (World Bank, {y['forex_reserves_bn_usd']})"
+        if "unemployment_rate_pct" in v:
+            macro["unemployment_rate_pct"] = v["unemployment_rate_pct"]
+        if "fiscal_deficit_gdp_pct" in v:
+            macro["fiscal_deficit_gdp_pct"] = v["fiscal_deficit_gdp_pct"]
+            macro["fiscal_deficit_description"] = f"Fiscal deficit, % of GDP (World Bank, {y['fiscal_deficit_gdp_pct']})"
+        if "current_account_deficit_gdp" in v:
+            macro["current_account_deficit_gdp"] = v["current_account_deficit_gdp"]
+        macro["as_of"] = "Live (World Bank Open Data)"
+        macro["source"] = "World Bank Open Data (live); MOSPI (WPI, IIP — static reference)"
+        macro["data_source"] = "live"
+        macro["disclaimer"] = "GDP/CPI/forex/unemployment/fiscal/current-account are fetched live from World Bank Open Data (annual series). WPI inflation and IIP growth have no free live API and remain static reference figures — verify at mospi.gov.in."
+    else:
+        macro["data_source"] = "static_fallback"
+        macro["disclaimer"] = "Live macro data temporarily unavailable — showing last known reference values. Verify at mospi.gov.in and rbi.org.in."
+
+    live_rbi = _fetch_rbi_live_rates()
+    rbi_rates = {k: v for k, v in live_rbi.items() if k != "source"} if live_rbi else \
+        {**{k: v for k, v in RBI_RATES.items() if k != "source"}, "data_source": "static_fallback"}
     return {
-        "macro_indicators": ECONOMIC_STATIC,
-        "rbi_rates": {k: v for k, v in RBI_RATES.items() if k != "source"},
+        "macro_indicators": macro,
+        "rbi_rates": rbi_rates,
     }
 
 @app.get("/api/v1/economic/currency")
@@ -2241,15 +2394,20 @@ async def economic_dashboard():
     crude = crude_data["prices"][-1]["close"] if crude_data and crude_data["prices"] else None
     nifty_data = _fetch_yf("^NSEI", period="5d", interval="1d")
     nifty = nifty_data["prices"][-1]["close"] if nifty_data and nifty_data["prices"] else None
+    live_rbi = _fetch_rbi_live_rates()
+    repo_rate = live_rbi["repo_rate"] if live_rbi else RBI_RATES["repo_rate"]
+    wb = _fetch_worldbank_indicators()
+    cpi = wb["values"].get("cpi_inflation_pct", ECONOMIC_STATIC["cpi_inflation_pct"]) if wb else ECONOMIC_STATIC["cpi_inflation_pct"]
+    gdp = wb["values"].get("gdp_growth_rate_pct", ECONOMIC_STATIC["gdp_growth_rate_pct"]) if wb else ECONOMIC_STATIC["gdp_growth_rate_pct"]
     return {
         "snapshot": {
             "nifty_50":          nifty,
             "usd_inr":           usdinr,
             "gold_usd_oz":       gold,
             "crude_oil_usd_bbl": crude,
-            "repo_rate_pct":     RBI_RATES["repo_rate"],
-            "cpi_inflation_pct": ECONOMIC_STATIC["cpi_inflation_pct"],
-            "gdp_growth_pct":    ECONOMIC_STATIC["gdp_growth_rate_pct"],
+            "repo_rate_pct":     repo_rate,
+            "cpi_inflation_pct": cpi,
+            "gdp_growth_pct":    gdp,
         },
         "timestamp": datetime.utcnow().isoformat(),
     }
